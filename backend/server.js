@@ -9,7 +9,7 @@ dotenv.config();
 
 // Initialize the Express application
 const app = express();
-app.use(cors());
+
 
 // Middleware
 app.use(cors()); 
