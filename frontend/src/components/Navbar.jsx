@@ -8,8 +8,6 @@ import { Search, PlusCircle, LogOut, User as UserIcon, Menu, X } from 'lucide-re
 export default function Navbar() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  
-  // NEW: State to track if the mobile menu is open or closed
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -23,7 +21,7 @@ export default function Navbar() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
-    setIsMobileMenuOpen(false); // Close the menu when logging out
+    setIsMobileMenuOpen(false);
     router.push('/login');
   };
 
@@ -39,7 +37,7 @@ export default function Navbar() {
             </Link>
           </div>
 
-          {/* Desktop Search Bar */}
+          {/* DESKTOP Search Bar (Hidden on mobile) */}
           <div className="hidden md:flex flex-1 max-w-2xl mx-8">
             <div className="relative w-full flex">
               <input
@@ -53,7 +51,7 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* DESKTOP Navigation Links (Hidden on small screens) */}
+          {/* DESKTOP Navigation Links (Hidden on mobile) */}
           <div className="hidden md:flex items-center space-x-4">
             {user ? (
               <>
@@ -82,7 +80,7 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* MOBILE Hamburger Menu Button (Visible only on small screens) */}
+          {/* MOBILE Hamburger Menu Button */}
           <div className="md:hidden flex items-center">
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -98,7 +96,21 @@ export default function Navbar() {
       {/* MOBILE Dropdown Menu */}
       {isMobileMenuOpen && (
         <div className="md:hidden bg-white border-t border-gray-100 shadow-lg absolute w-full left-0">
-          <div className="px-4 pt-2 pb-4 space-y-2">
+          <div className="px-4 pt-4 pb-6 space-y-3">
+            
+            {/* --- NEW: MOBILE SEARCH BAR --- */}
+            <div className="relative w-full flex mb-4">
+              <input
+                type="text"
+                placeholder="Search CampusGig..."
+                className="w-full border border-gray-300 rounded-l-md py-2 pl-4 pr-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <button className="bg-green-600 flex items-center justify-center px-4 rounded-r-md hover:bg-green-700 transition-colors">
+                <Search className="h-5 w-5 text-white" />
+              </button>
+            </div>
+            {/* ----------------------------- */}
+
             {user ? (
               <>
                 <div className="flex items-center text-gray-800 px-3 py-3 font-semibold border-b border-gray-100 mb-2 bg-gray-50 rounded-md">
