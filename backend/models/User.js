@@ -1,0 +1,34 @@
+const mongoose = require('mongoose');
+
+const userSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true, // No two students can use the same email
+    match: [/.+\@.+\..+/, 'Please use a valid university email address'],
+  },
+  password: {
+    type: String,
+    required: true,
+  },
+  university: {
+    type: String,
+    required: true, // Crucial for keeping it campus-specific
+  },
+  bio: {
+    type: String,
+    default: 'A student looking to buy and sell on campus!',
+  },
+  profileImage: {
+    type: String,
+    default: 'default-avatar.png',
+  },
+}, {
+  timestamps: true // Automatically adds createdAt and updatedAt dates
+});
+
+module.exports = mongoose.model('User', userSchema);
