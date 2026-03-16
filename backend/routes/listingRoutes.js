@@ -4,34 +4,31 @@ const Listing = require('../models/Listing'); // The Listing blueprint
 const auth = require('../middleware/auth'); // Our new bouncer!
 const upload = require('../middleware/upload');
 
-// @route   POST /api/listings
-// @desc    Create a new listing/gig WITH IMAGES
-// @access  Private
-router.post('/', auth, upload.array('images', 5), async (req, res) => {
+// @route   GET /api/listings
+// @desc    Get all active listings (with optional search AND category filters)
+// @access  Public
+router.get('/', async (req, res) => {
   try {
-    // 1. Grab text details
-    const { title, description, price, category } = req.body;
+    // 1. Grab BOTH search and category from the URL!
+    const { search, category } = req.query; 
+    let query = {}; 
 
-    // 2. If files were uploaded, Cloudinary gives us the URLs in req.files!
-    // We map through them and create an array of just the secure URL strings.
-    const imageUrls = req.files ? req.files.map(file => file.path) : [];
+    // 2. If they typed a search, add it to the filter
+    if (search) {
+      query.title = { $regex: search, $options: 'i' }; 
+    }
+    
+    // 3. If they clicked a category button, add it to the filter
+    if (category) {
+      query.category = category; 
+    }
 
-    // 3. Create the new listing
-    const newListing = new Listing({
-      seller: req.user.id,
-      title,
-      description,
-      price,
-      category,
-      images: imageUrls // Save our new Cloudinary URLs to MongoDB!
-    });
-
-    const savedListing = await newListing.save();
-    res.status(201).json(savedListing);
-
+    // 4. Find the listings that match our combined filters
+    const listings = await Listing.find(query).populate('seller', 'name').sort({ createdAt: -1 });
+    res.json(listings);
   } catch (error) {
-    console.error('Listing Creation Error:', error);
-    res.status(500).json({ message: 'Server error while creating listing' });
+    console.error('Fetch Listings Error:', error);
+    res.status(500).json({ message: 'Server error while fetching listings' });
   }
 });
 
