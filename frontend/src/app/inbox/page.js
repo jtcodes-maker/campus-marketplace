@@ -4,19 +4,16 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { MessageSquare, ArrowRight, Send } from 'lucide-react';
+// Added Trash2 to our icons!
+import { MessageSquare, ArrowRight, Send, Trash2 } from 'lucide-react';
 
 export default function Inbox() {
   const router = useRouter();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  // We need to know who is logged in so we can label messages as "Sent" or "Received"
   const [currentUserId, setCurrentUserId] = useState(null);
 
-  // --- NEW: Reply States ---
-  // We use an object to track the text for EACH specific message box independently
   const [replyTexts, setReplyTexts] = useState({}); 
   const [isReplying, setIsReplying] = useState(null);
 
@@ -49,7 +46,6 @@ export default function Inbox() {
     }
   };
 
-  // --- NEW: Handle Reply Function ---
   const handleSendReply = async (originalMessageId, originalMessage) => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -57,7 +53,6 @@ export default function Inbox() {
       return;
     }
 
-    // Grab the specific text for THIS message box
     const textToSend = replyTexts[originalMessageId];
 
     if (!textToSend || !textToSend.trim()) {
@@ -65,32 +60,47 @@ export default function Inbox() {
       return;
     }
 
-    // Figure out who we are replying to
     const isSender = originalMessage.sender._id === currentUserId;
     const otherPersonId = isSender ? originalMessage.receiver._id : originalMessage.sender._id;
 
     try {
-      setIsReplying(originalMessageId); // Show loading state on the specific button
+      setIsReplying(originalMessageId);
 
       await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/messages`, {
         receiverId: otherPersonId,
-        listingId: originalMessage.listing._id,
+        listingId: originalMessage.listing?._id, // Notice the optional chaining '?' just in case the item is deleted
         content: textToSend.trim(),
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Clear the specific text box after sending
       setReplyTexts(prev => ({ ...prev, [originalMessageId]: '' }));
       setIsReplying(null);
-      
-      // Instantly refresh the inbox to show the new message at the top!
       fetchInbox(); 
 
     } catch (err) {
       console.error("Failed to send reply:", err.response?.data || err.message);
       alert("Failed to send reply. Please try again.");
       setIsReplying(null);
+    }
+  };
+
+  // --- NEW: Delete Function ---
+  const handleDeleteMessage = async (messageId) => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this message?");
+    if (!confirmDelete) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/messages/${messageId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Instantly remove it from the screen without reloading
+      setMessages(messages.filter((msg) => msg._id !== messageId));
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert("Failed to delete message. Please try again.");
     }
   };
 
@@ -125,7 +135,7 @@ export default function Inbox() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <ul className="divide-y divide-gray-200">
             {messages.map((msg) => {
-              const isSender = msg.sender._id === currentUserId;
+              const isSender = msg.sender?._id === currentUserId;
               const otherPerson = isSender ? msg.receiver : msg.sender;
               
               return (
@@ -138,7 +148,7 @@ export default function Inbox() {
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900">
-                          {isSender ? `You sent a message to ${otherPerson?.name}` : `Message from ${otherPerson?.name}`}
+                          {isSender ? `You sent a message to ${otherPerson?.name || 'Unknown'}` : `Message from ${otherPerson?.name || 'Unknown'}`}
                         </p>
                         <p className="text-sm text-green-600 font-medium">
                           Regarding: {msg.listing?.title || 'Deleted Item'}
@@ -146,13 +156,23 @@ export default function Inbox() {
                       </div>
                     </div>
                     
-                    <span className="text-xs text-gray-400 mt-2 sm:mt-0 whitespace-nowrap font-medium">
-                      {new Date(msg.createdAt).toLocaleDateString()} at {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                    </span>
+                    {/* Timestamp & Delete Button Group */}
+                    <div className="flex items-center mt-3 sm:mt-0">
+                      <span className="text-xs text-gray-400 font-medium mr-4">
+                        {new Date(msg.createdAt).toLocaleDateString()} at {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </span>
+                      <button 
+                        onClick={() => handleDeleteMessage(msg._id)}
+                        className="text-gray-400 hover:text-red-600 transition-colors p-1 rounded-md hover:bg-red-50"
+                        title="Delete Message"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                   
                   <div className="ml-0 sm:ml-13 bg-gray-100 p-4 rounded-lg rounded-tl-none border border-gray-200">
-                    <p className="text-gray-800 whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-gray-800 whitespace-pre-wrap">{msg.content || 'Message unavailable'}</p>
                   </div>
                   
                   {msg.listing && (
@@ -169,7 +189,6 @@ export default function Inbox() {
                     </div>
                   )}
 
-                  {/* --- NEW: REPLY BOX --- */}
                   <div className="mt-5 border-t border-gray-200 pt-5 ml-0 sm:ml-13">
                     <textarea
                       value={replyTexts[msg._id] || ''}
@@ -188,7 +207,6 @@ export default function Inbox() {
                       </button>
                     </div>
                   </div>
-                  {/* ------------------------ */}
 
                 </li>
               );
