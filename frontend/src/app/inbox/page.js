@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { MessageSquare, ArrowRight } from 'lucide-react';
+import { MessageSquare, ArrowRight, Send } from 'lucide-react';
 
 export default function Inbox() {
   const router = useRouter();
@@ -15,35 +15,84 @@ export default function Inbox() {
   // We need to know who is logged in so we can label messages as "Sent" or "Received"
   const [currentUserId, setCurrentUserId] = useState(null);
 
+  // --- NEW: Reply States ---
+  // We use an object to track the text for EACH specific message box independently
+  const [replyTexts, setReplyTexts] = useState({}); 
+  const [isReplying, setIsReplying] = useState(null);
+
   useEffect(() => {
-    const fetchInbox = async () => {
-      const token = localStorage.getItem('token');
-      const userStr = localStorage.getItem('user');
-      
-      if (!token || !userStr) {
-        router.push('/login');
-        return;
-      }
-
-      // Parse the user data from localStorage
-      const user = JSON.parse(userStr);
-      setCurrentUserId(user.id || user._id); // Handle different ID formats just in case
-
-      try {
-        const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/messages`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setMessages(res.data);
-      } catch (err) {
-        console.error("Inbox fetch error:", err);
-        setError("Failed to load your messages. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchInbox();
   }, [router]);
+
+  const fetchInbox = async () => {
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    
+    if (!token || !userStr) {
+      router.push('/login');
+      return;
+    }
+
+    const user = JSON.parse(userStr);
+    setCurrentUserId(user.id || user._id); 
+
+    try {
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/messages`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMessages(res.data);
+    } catch (err) {
+      console.error("Inbox fetch error:", err);
+      setError("Failed to load your messages. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- NEW: Handle Reply Function ---
+  const handleSendReply = async (originalMessageId, originalMessage) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    // Grab the specific text for THIS message box
+    const textToSend = replyTexts[originalMessageId];
+
+    if (!textToSend || !textToSend.trim()) {
+      alert("Please type a message before sending!");
+      return;
+    }
+
+    // Figure out who we are replying to
+    const isSender = originalMessage.sender._id === currentUserId;
+    const otherPersonId = isSender ? originalMessage.receiver._id : originalMessage.sender._id;
+
+    try {
+      setIsReplying(originalMessageId); // Show loading state on the specific button
+
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/messages`, {
+        receiverId: otherPersonId,
+        listingId: originalMessage.listing._id,
+        content: textToSend.trim(),
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Clear the specific text box after sending
+      setReplyTexts(prev => ({ ...prev, [originalMessageId]: '' }));
+      setIsReplying(null);
+      
+      // Instantly refresh the inbox to show the new message at the top!
+      fetchInbox(); 
+
+    } catch (err) {
+      console.error("Failed to send reply:", err.response?.data || err.message);
+      alert("Failed to send reply. Please try again.");
+      setIsReplying(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -76,7 +125,6 @@ export default function Inbox() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <ul className="divide-y divide-gray-200">
             {messages.map((msg) => {
-              // Figure out if the logged-in user sent this, or received it
               const isSender = msg.sender._id === currentUserId;
               const otherPerson = isSender ? msg.receiver : msg.sender;
               
@@ -84,9 +132,8 @@ export default function Inbox() {
                 <li key={msg._id} className="p-6 hover:bg-gray-50 transition-colors">
                   <div className="flex flex-col sm:flex-row justify-between mb-4">
                     
-                    {/* Header: Who is it from/to? */}
                     <div className="flex items-center">
-                      <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center text-green-700 font-bold mr-3">
+                      <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center text-green-700 font-bold mr-3 border border-green-200">
                         {otherPerson?.name?.charAt(0) || '?'}
                       </div>
                       <div>
@@ -99,28 +146,50 @@ export default function Inbox() {
                       </div>
                     </div>
                     
-                    {/* Timestamp */}
                     <span className="text-xs text-gray-400 mt-2 sm:mt-0 whitespace-nowrap font-medium">
                       {new Date(msg.createdAt).toLocaleDateString()} at {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                     </span>
                   </div>
                   
-                  {/* The Actual Message Content */}
                   <div className="ml-0 sm:ml-13 bg-gray-100 p-4 rounded-lg rounded-tl-none border border-gray-200">
                     <p className="text-gray-800 whitespace-pre-wrap">{msg.content}</p>
                   </div>
                   
-                  {/* Link back to the item */}
                   {msg.listing && (
-                    <div className="mt-4 flex justify-end">
+                    <div className="mt-4 flex justify-between items-center ml-0 sm:ml-13">
+                      <span className={`text-xs font-bold px-3 py-1 rounded-full ${isSender ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
+                        {isSender ? 'You Sent' : 'You Received'}
+                      </span>
                       <Link 
                         href={`/listings/${msg.listing._id}`}
                         className="flex items-center text-sm text-green-600 font-semibold hover:text-green-700 transition-colors"
                       >
-                        View Item <ArrowRight className="w-4 h-4 ml-1" />
+                        View Item Details <ArrowRight className="w-4 h-4 ml-1" />
                       </Link>
                     </div>
                   )}
+
+                  {/* --- NEW: REPLY BOX --- */}
+                  <div className="mt-5 border-t border-gray-200 pt-5 ml-0 sm:ml-13">
+                    <textarea
+                      value={replyTexts[msg._id] || ''}
+                      onChange={(e) => setReplyTexts(prev => ({ ...prev, [msg._id]: e.target.value }))}
+                      placeholder={`Reply to ${otherPerson?.name || 'them'}...`}
+                      className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-green-500 focus:outline-none resize-none bg-white shadow-inner"
+                      rows="2"
+                    ></textarea>
+                    <div className="flex justify-end mt-3">
+                      <button 
+                        onClick={() => handleSendReply(msg._id, msg)}
+                        disabled={isReplying === msg._id}
+                        className={`flex items-center bg-green-600 text-white px-5 py-2 rounded-md font-semibold hover:bg-green-700 transition-colors ${isReplying === msg._id ? 'opacity-70 cursor-not-allowed' : ''}`}
+                      >
+                        {isReplying === msg._id ? 'Sending...' : <><Send className="w-4 h-4 mr-2" /> Send Reply</>}
+                      </button>
+                    </div>
+                  </div>
+                  {/* ------------------------ */}
+
                 </li>
               );
             })}
