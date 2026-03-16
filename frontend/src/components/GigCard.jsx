@@ -8,7 +8,7 @@ export default function GigCard({ listing }) {
     : 'https://placehold.co/600x400/e2e8f0/475569?text=No+Image';
 
   return (
-    <Link href={`/listing/${listing._id}`} className="block h-full">
+    <Link href={`/listings/${listing._id}`} className="block h-full">
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer flex flex-col h-full">
         
         {/* 1. Gig Image */}
