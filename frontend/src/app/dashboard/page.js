@@ -4,28 +4,35 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Trash2, Edit, ExternalLink } from 'lucide-react';
+import { Trash2, PlusCircle } from 'lucide-react';
 
 export default function Dashboard() {
   const router = useRouter();
   const [myListings, setMyListings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
+  // 1. Fetch the user's items when the page loads
   useEffect(() => {
     const fetchMyListings = async () => {
+      // Security Check: Grab the user's secret token
       const token = localStorage.getItem('token');
+      
       if (!token) {
+        // If they aren't logged in, kick them to the login page!
         router.push('/login');
         return;
       }
 
       try {
-        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/listings/me`, {
-          headers: { Authorization: `Bearer ${token}` }
+        // Ask the backend for ONLY this user's items
+        const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/listings/me`, {
+          headers: { Authorization: `Bearer ${token}` } // Show our ID badge to the backend
         });
-        setMyListings(response.data);
+        setMyListings(res.data);
       } catch (err) {
-        console.error("Failed to load dashboard data");
+        console.error("Dashboard fetch error:", err);
+        setError("Failed to load your items. Please try logging in again.");
       } finally {
         setLoading(false);
       }
@@ -34,91 +41,94 @@ export default function Dashboard() {
     fetchMyListings();
   }, [router]);
 
-  // Handle the Delete Action
+  // 2. The Delete Function
   const handleDelete = async (listingId) => {
-    // Standard browser confirmation popup
-    if (!window.confirm("Are you sure you want to delete this listing? This cannot be undone.")) return;
+    // Double-check they actually want to delete it
+    const confirmDelete = window.confirm("Are you sure you want to delete this listing? This cannot be undone.");
+    if (!confirmDelete) return;
 
     try {
       const token = localStorage.getItem('token');
+      
+      // Tell the backend to delete it from MongoDB
       await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/listings/${listingId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      // Remove the deleted item from the screen instantly without refreshing the page!
+
+      // Update the screen instantly by filtering out the deleted item
       setMyListings(myListings.filter(listing => listing._id !== listingId));
+      
     } catch (err) {
-      alert("Failed to delete listing.");
+      console.error("Delete error:", err);
+      alert("Failed to delete the listing. Please try again.");
     }
   };
 
-  if (loading) return <div className="text-center py-20 font-bold text-green-600">Loading Dashboard...</div>;
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-5xl mx-auto mt-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">My Dashboard</h1>
-        <Link 
-          href="/create-listing" 
-          className="bg-green-600 text-white px-4 py-2 rounded-md font-semibold hover:bg-green-700 transition-colors"
-        >
-          Post New Gig
+        <Link href="/create-listing" className="flex items-center bg-green-600 text-white px-4 py-2 rounded-md font-semibold hover:bg-green-700 transition-colors">
+          <PlusCircle className="w-5 h-5 mr-2" /> Post New Gig
         </Link>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-        {myListings.length === 0 ? (
-          <div className="p-10 text-center text-gray-500">
-            You haven't posted any items yet. 
-          </div>
-        ) : (
+      {error && (
+        <div className="bg-red-50 text-red-500 p-4 rounded-md mb-6 text-center font-medium">
+          {error}
+        </div>
+      )}
+
+      {myListings.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-lg border border-gray-200 shadow-sm">
+          <h2 className="text-xl font-semibold text-gray-700 mb-2">You haven't posted anything yet!</h2>
+          <p className="text-gray-500 mb-6">Got old textbooks, a bike, or tutoring skills? Turn them into cash.</p>
+          <Link href="/create-listing" className="text-green-600 font-semibold hover:underline">
+            Click here to create your first listing →
+          </Link>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <ul className="divide-y divide-gray-200">
             {myListings.map((listing) => (
-              <li key={listing._id} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-gray-50 transition-colors">
+              <li key={listing._id} className="p-4 sm:p-6 flex flex-col sm:flex-row items-center justify-between hover:bg-gray-50 transition-colors">
                 
-                {/* Left Side: Image & Info */}
-                <div className="flex items-center space-x-4 mb-4 sm:mb-0">
-                  <div className="w-16 h-16 bg-gray-200 rounded-md overflow-hidden flex-shrink-0">
+                {/* Item Info */}
+                <div className="flex items-center w-full sm:w-auto mb-4 sm:mb-0">
+                  <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border border-gray-200">
                     <img 
-                      src={listing.images?.length > 0 ? listing.images[0] : 'https://placehold.co/100x100?text=No+Image'} 
+                      src={listing.images[0] || 'https://via.placeholder.com/150'} 
                       alt={listing.title} 
-                      className="w-full h-full object-cover"
+                      className="h-full w-full object-cover"
                     />
                   </div>
-                  <div>
-                    <Link href={`/listing/${listing._id}`} className="text-lg font-bold text-gray-900 hover:text-green-600 transition-colors">
-                      {listing.title}
-                    </Link>
-                    <div className="text-sm text-gray-500 flex space-x-3 mt-1">
-                      <span className="font-semibold text-gray-700">N${listing.price}</span>
-                      <span>•</span>
-                      <span>{listing.category}</span>
-                      <span>•</span>
-                      <span className={listing.status === 'Active' ? 'text-green-600' : 'text-red-500'}>
-                        {listing.status}
-                      </span>
-                    </div>
+                  <div className="ml-4">
+                    <h3 className="text-lg font-semibold text-gray-900">{listing.title}</h3>
+                    <p className="text-sm text-gray-500">{listing.category} • N${listing.price}</p>
                   </div>
                 </div>
 
-                {/* Right Side: Action Buttons */}
-                <div className="flex items-center space-x-3">
-                  <Link href={`/listing/${listing._id}`} className="p-2 text-gray-400 hover:text-blue-600 transition-colors" title="View Listing">
-                    <ExternalLink className="w-5 h-5" />
-                  </Link>
-                  <button className="p-2 text-gray-400 hover:text-orange-500 transition-colors" title="Edit Listing (Coming Soon)">
-                    <Edit className="w-5 h-5" />
-                  </button>
-                  <button onClick={() => handleDelete(listing._id)} className="p-2 text-gray-400 hover:text-red-600 transition-colors" title="Delete Listing">
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                </div>
+                {/* Delete Button */}
+                <button 
+                  onClick={() => handleDelete(listing._id)}
+                  className="w-full sm:w-auto flex items-center justify-center px-4 py-2 border border-red-200 text-red-600 rounded-md hover:bg-red-50 hover:border-red-300 transition-colors font-medium"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" /> Delete
+                </button>
 
               </li>
             ))}
           </ul>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
