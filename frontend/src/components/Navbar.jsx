@@ -9,6 +9,7 @@ export default function Navbar() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -25,6 +26,16 @@ export default function Navbar() {
     router.push('/login');
   };
 
+  const handleSearch = (e) => {
+    e.preventDefault(); // Stop the page from reloading
+    if (searchTerm.trim()) {
+    setIsMobileMenuOpen(false); // Close mobile menu if it's open
+    router.push(`/?search=${searchTerm}`); // Send them to the homepage with the search query in the URL!
+    } else {
+    router.push(`/`); // If search is empty, just go to the normal homepage
+   }
+  };
+
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -39,16 +50,18 @@ export default function Navbar() {
 
           {/* DESKTOP Search Bar (Hidden on mobile) */}
           <div className="hidden md:flex flex-1 max-w-2xl mx-8">
-            <div className="relative w-full flex">
+            <form onSubmit={handleSearch} className="relative w-full flex">
               <input
                 type="text"
-                placeholder="Find services, textbooks, or tutoring..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Find services, products,textbooks or tutoring..."
                 className="w-full border border-gray-300 rounded-l-md py-2 pl-4 pr-3 focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-              <button className="bg-green-600 flex items-center justify-center px-4 rounded-r-md hover:bg-green-700 transition-colors">
-                <Search className="h-5 w-5 text-white" />
-              </button>
-            </div>
+                />
+                <button type="submit" className="bg-green-600 flex items-center justify-center px-4 rounded-r-md hover:bg-green-700 transition-colors">
+                  <Search className="h-5 w-5 text-white" />
+                </button>
+            </form>
           </div>
 
           {/* DESKTOP Navigation Links (Hidden on mobile) */}
@@ -99,16 +112,19 @@ export default function Navbar() {
           <div className="px-4 pt-4 pb-6 space-y-3">
             
             {/* --- NEW: MOBILE SEARCH BAR --- */}
-            <div className="relative w-full flex mb-4">
+            <form onSubmit={handleSearch} className="relative w-full flex mb-4">
               <input
                 type="text"
-                placeholder="Search CampusGig..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Find services, products, textbooks or tutoring..."
                 className="w-full border border-gray-300 rounded-l-md py-2 pl-4 pr-3 focus:outline-none focus:ring-2 focus:ring-green-500"
               />
-              <button className="bg-green-600 flex items-center justify-center px-4 rounded-r-md hover:bg-green-700 transition-colors">
+              <button type="submit" className="bg-green-600 flex items-center justify-center px-4 rounded-r-md hover:bg-green-700 transition-colors">
                 <Search className="h-5 w-5 text-white" />
               </button>
-            </div>
+            </form>
+
             {/* ----------------------------- */}
 
             {user ? (

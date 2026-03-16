@@ -3,8 +3,12 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import GigCard from '@/components/GigCard';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 export default function Home() {
+  const searchParams = useSearchParams();
+  const searchQuery = searchParams.get('search'); // This grabs "?search=xyz" from the URL
+  const router = useRouter();
   // 1. Set up state to hold our data
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,19 +18,24 @@ export default function Home() {
   useEffect(() => {
     const fetchListings = async () => {
       try {
+        // Create the endpoint URL. If there is a search query, attach it!
+      const endpoint = searchQuery 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/listings?search=${searchQuery}`
+        : `${process.env.NEXT_PUBLIC_API_URL}/listings`;
         // We use the environment variable we set up earlier!
-        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/listings`);
+        const response = await axios.get(endpoint);
         setListings(response.data);
         setLoading(false);
       } catch (err) {
         console.error("Error fetching listings:", err);
         setError("Failed to load marketplace items. Is your backend running?");
+      } finally {
         setLoading(false);
       }
     };
 
     fetchListings();
-  }, []); // The empty array means this only runs once when the page loads
+  }, [searchQuery]); // The empty array means this only runs once when the page loads
 
   // 3. Show a loading spinner while fetching
   if (loading) {
@@ -49,9 +58,22 @@ export default function Home() {
   // 5. Render the actual marketplace feed!
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">
-        Popular on Campus Right Now
-      </h1>
+      {/* --- DYNAMIC HEADER WITH CLEAR BUTTON --- */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+        <h1 className="text-3xl font-bold text-gray-900">
+          {searchQuery ? `Search Results for "${searchQuery}"` : 'Popular on Campus Right Now'}
+        </h1>
+        {/* Only show the Clear Search button if they actually searched for something */}
+        {searchQuery && (
+          <button 
+            onClick={() => router.push('/')} 
+            className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md font-semibold hover:bg-gray-200 transition-colors"
+          >
+            Clear Search
+          </button>
+        )}
+      </div>
+      {/* -------------------------------------- */}
       
       {listings.length === 0 ? (
         <p className="text-gray-500 text-center py-10">No items for sale yet. Be the first to post!</p>

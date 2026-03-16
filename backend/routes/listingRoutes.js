@@ -38,36 +38,23 @@ router.post('/', auth, upload.array('images', 5), async (req, res) => {
 // --- ADD THIS NEW ROUTE ---
 
 // @route   GET /api/listings
-// @desc    Get all active listings (Marketplace feed) WITH Search & Filter
+// @desc    Get all active listings (with optional search)
 // @access  Public
 router.get('/', async (req, res) => {
   try {
-    // 1. Grab the search terms from the URL query
-    const { keyword, category } = req.query;
+    const { search } = req.query; // Look for a search word in the request
+    let query = {}; // Start with an empty filter (get everything)
 
-    // 2. Start our database query by always asking for 'Active' listings
-    let dbQuery = { status: 'Active' };
-
-    // 3. If the user typed a keyword, search the title OR description
-    if (keyword) {
-      dbQuery.$or = [
-        { title: { $regex: keyword, $options: 'i' } }, // 'i' means case-insensitive (ignores capital letters)
-        { description: { $regex: keyword, $options: 'i' } }
-      ];
+    // If the user searched for something, update the filter
+    if (search) {
+      // $regex allows partial matches (e.g., "calc" finds "calculus")
+      // $options: 'i' makes it case-insensitive (ignores capital letters)
+      query.title = { $regex: search, $options: 'i' }; 
     }
 
-    // 4. If the user clicked a specific category filter, add it to the search
-    if (category) {
-      dbQuery.category = category;
-    }
-
-    // 5. Run the search with our dynamic dbQuery
-    const listings = await Listing.find(dbQuery)
-      .sort({ createdAt: -1 })
-      .populate('seller', 'name university profileImage');
-
+    // Find listings using our query filter, sorted by newest first
+    const listings = await Listing.find(query).populate('seller', 'name').sort({ createdAt: -1 });
     res.json(listings);
-
   } catch (error) {
     console.error('Fetch Listings Error:', error);
     res.status(500).json({ message: 'Server error while fetching listings' });
