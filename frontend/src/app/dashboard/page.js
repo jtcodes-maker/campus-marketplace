@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Trash2, PlusCircle } from 'lucide-react';
+import { Trash2, PlusCircle, Edit } from 'lucide-react';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -116,13 +116,21 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Delete Button */}
-                <button 
-                  onClick={() => handleDelete(listing._id)}
-                  className="w-full sm:w-auto flex items-center justify-center px-4 py-2 border border-red-200 text-red-600 rounded-md hover:bg-red-50 hover:border-red-300 transition-colors font-medium"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" /> Delete
-                </button>
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <Link 
+                    href={`/edit-listing/${listing._id}`}
+                    className="flex items-center justify-center px-4 py-2 border border-gray-200 text-gray-700 rounded-md hover:bg-gray-50 hover:border-gray-300 transition-colors font-medium"
+                  >
+                    <Edit className="w-4 h-4 mr-2" /> Edit
+                  </Link>
+                  <button 
+                    onClick={() => handleDelete(listing._id)}
+                    className="flex items-center justify-center px-4 py-2 border border-red-200 text-red-600 rounded-md hover:bg-red-50 hover:border-red-300 transition-colors font-medium"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" /> Delete
+                  </button>
+                </div>
 
               </li>
             ))}

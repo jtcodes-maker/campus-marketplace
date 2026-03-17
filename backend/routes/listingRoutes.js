@@ -75,6 +75,40 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
+// @route   PUT /api/listings/:id
+// @desc    Update a listing's text details
+// @access  Private
+router.put('/:id', auth, async (req, res) => {
+  try {
+    let listing = await Listing.findById(req.params.id);
+
+    if (!listing) {
+      return res.status(404).json({ message: 'Listing not found' });
+    }
+
+    // Security Check: Make sure the person editing is the one who created it!
+    if (listing.seller.toString() !== req.user.id) {
+      return res.status(401).json({ message: 'User not authorized to edit this item' });
+    }
+
+    // Grab the new data from the request
+    const { title, description, price, category } = req.body;
+
+    // Update the fields (if a field wasn't changed, keep the old one)
+    listing.title = title || listing.title;
+    listing.description = description || listing.description;
+    listing.price = price || listing.price;
+    listing.category = category || listing.category;
+
+    const updatedListing = await listing.save();
+    res.json(updatedListing);
+
+  } catch (error) {
+    console.error('Update Listing Error:', error);
+    res.status(500).json({ message: 'Server error while updating listing' });
+  }
+});
+
 // @route   DELETE /api/listings/:id
 // @desc    Delete a listing
 // @access  Private
