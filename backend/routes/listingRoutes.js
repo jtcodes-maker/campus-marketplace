@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Listing = require('../models/Listing'); // The Listing blueprint
+const User = require('../models/User'); // We need the User blueprint to get the seller's info!
 const auth = require('../middleware/auth'); // Our new bouncer!
 const upload = require('../middleware/upload');
 
@@ -119,6 +120,31 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Listing not found' });
     }
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   GET /api/listings/seller/:id
+// @desc    Get a public seller profile AND their active listings
+// @access  Public
+router.get('/seller/:id', async (req, res) => {
+  try {
+    // 1. Find the seller's public info (Exclude their password and email for security!)
+    const seller = await User.findById(req.params.id).select('-password -email');
+    
+    if (!seller) {
+      return res.status(404).json({ message: 'Seller not found' });
+    }
+
+    // 2. Find all listings created by this specific seller
+    const listings = await Listing.find({ seller: req.params.id })
+      .populate('seller', 'name')
+      .sort({ createdAt: -1 });
+
+    // 3. Package them together and send them to the frontend!
+    res.json({ seller, listings });
+  } catch (error) {
+    console.error('Fetch Seller Profile Error:', error);
+    res.status(500).json({ message: 'Server error while fetching profile' });
   }
 });
 

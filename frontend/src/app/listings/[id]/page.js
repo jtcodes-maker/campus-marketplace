@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useParams, useRouter } from 'next/navigation';
 import { Send } from 'lucide-react';
+import Link from 'next/link';
 
 export default function ListingDetails() {
   const { id } = useParams(); // Grabs the specific item ID from the URL
@@ -99,7 +100,9 @@ export default function ListingDetails() {
               </div>
               <div>
                 <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Listed by</p>
-                <p className="font-bold text-gray-900 text-lg">{listing.seller?.name}</p>
+                <Link href={`/profile/${listing.seller?._id}`} className="font-bold text-gray-900 text-lg hover:text-green-600 hover:underline transition-colors">
+                  {listing.seller?.name}
+                </Link>
               </div>
             </div>
           </div>
