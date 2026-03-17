@@ -27,6 +27,9 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: 'default-avatar.png',
   },
+  // --- NEW VERIFICATION FIELDS ---
+  isVerified: { type: Boolean, default: false }, // Everyone starts as unverified!
+  verificationCode: { type: String }, // Stores the 6-digit code
 }, {
   timestamps: true // Automatically adds createdAt and updatedAt dates
 });

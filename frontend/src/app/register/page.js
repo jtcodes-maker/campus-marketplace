@@ -35,7 +35,7 @@ export default function Register() {
 
       // Success! Send them to the login page so they can sign in
       alert("Account created successfully! Please sign in.");
-      router.push('/login');
+      router.push(`/verify?email=${encodeURIComponent(email)}`);
       
     } catch (err) {
       console.error(err);
