@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useParams } from 'next/navigation';
 import GigCard from '@/components/GigCard';
-import { User as UserIcon, ShieldCheck, Package } from 'lucide-react';
+import { User as UserIcon, ShieldCheck, Package, AlertTriangle } from 'lucide-react';
 
 export default function UserProfile() {
   const { id } = useParams(); // Grab the seller's ID from the URL
@@ -72,6 +72,30 @@ export default function UserProfile() {
 
         </div>
       </div>
+
+      {/* --- NEW: Away Message Banner --- */}
+      {seller.isAvailable === false && (
+        <div className="mb-10 bg-orange-50 border-l-4 border-orange-500 p-5 rounded-r-lg shadow-sm">
+          <div className="flex items-start">
+            <div className="flex-shrink-0 mt-0.5">
+              <AlertTriangle className="h-6 w-6 text-orange-500" />
+            </div>
+            <div className="ml-3">
+              <h3 className="text-base font-bold text-orange-800">
+                {seller.name.split(' ')[0]} is currently away
+              </h3>
+              <div className="mt-1 text-sm text-orange-700 font-medium">
+                <p>
+                  {seller.awayMessage 
+                    ? `"${seller.awayMessage}"` 
+                    : "This seller is currently away and may take longer than usual to respond to messages."}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* -------------------------------- */}
 
       {/* Seller's Listings Grid */}
       <h2 className="text-2xl font-bold text-gray-900 mb-6">More from {seller.name.split(' ')[0]}</h2>
