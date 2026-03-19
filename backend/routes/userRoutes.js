@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User'); // Import the User blueprint we made earlier
 const sendEmail = require('../utils/sendEmail');
+const auth = require('../middleware/auth');
 
 // @route   POST /api/users/register
 // @desc    Register a new student
@@ -148,6 +149,42 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     console.error('Login Error:', error);
     res.status(500).json({ message: 'Server error during login' });
+  }
+});
+
+// @route   PUT /api/users/availability
+// @desc    Update user availability status and message
+// @access  Private
+router.put('/availability', auth, async (req, res) => {
+  try {
+    // Find the logged-in user
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Update their status based on what the frontend sent
+    // We use typeof to explicitly check for true/false booleans
+    if (typeof req.body.isAvailable !== 'undefined') {
+      user.isAvailable = req.body.isAvailable;
+    }
+    
+    if (typeof req.body.awayMessage !== 'undefined') {
+      user.awayMessage = req.body.awayMessage;
+    }
+
+    await user.save();
+
+    res.json({ 
+      isAvailable: user.isAvailable, 
+      awayMessage: user.awayMessage,
+      message: 'Availability updated successfully!' 
+    });
+
+  } catch (error) {
+    console.error('Availability Update Error:', error);
+    res.status(500).json({ message: 'Server error while updating availability' });
   }
 });
 

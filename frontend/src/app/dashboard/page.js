@@ -4,24 +4,72 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Trash2, PlusCircle, Edit } from 'lucide-react';
+import { Trash2, PlusCircle, Edit, Calendar, X } from 'lucide-react';
 
 export default function Dashboard() {
   const router = useRouter();
   const [myListings, setMyListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // --- NEW: Availability State ---
+  const [isAvailable, setIsAvailable] = useState(true);
+  const [awayMessage, setAwayMessage] = useState('');
+  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+  const [savingAvailability, setSavingAvailability] = useState(false);
+
+  // --- NEW: Fetch their current availability ---
+  const fetchAvailability = async (userId) => {
+    try {
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/listings/seller/${userId}`);
+      if (res.data.seller) {
+        setIsAvailable(res.data.seller.isAvailable !== false); // Defaults to true
+        setAwayMessage(res.data.seller.awayMessage || '');
+      }
+    } catch (err) {
+      console.error("Failed to load availability", err);
+    }
+  };
+
+  // --- NEW: Save the availability to the backend ---
+  const handleSaveAvailability = async () => {
+    setSavingAvailability(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`${process.env.NEXT_PUBLIC_API_URL}/users/availability`, {
+        isAvailable,
+        awayMessage
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setShowAvailabilityModal(false);
+      alert("Availability updated successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update availability.");
+    } finally {
+      setSavingAvailability(false);
+    }
+  };
 
   // 1. Fetch the user's items when the page loads
   useEffect(() => {
     const fetchMyListings = async () => {
-      // Security Check: Grab the user's secret token
+      // Security Check: Grab the user's secret token AND their user data
       const token = localStorage.getItem('token');
+      const userStr = localStorage.getItem('user');
       
       if (!token) {
         // If they aren't logged in, kick them to the login page!
         router.push('/login');
         return;
+      }
+
+      // --- NEW: Fetch their availability status using their ID! ---
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        fetchAvailability(user.id || user._id);
       }
 
       try {
@@ -74,11 +122,27 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">My Dashboard</h1>
         <Link href="/create-listing" className="flex items-center bg-green-600 text-white px-4 py-2 rounded-md font-semibold hover:bg-green-700 transition-colors">
           <PlusCircle className="w-5 h-5 mr-2" /> Post New Gig
         </Link>
+      </div>
+
+      {/* --- NEW: Availability Banner --- */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8 flex flex-col sm:flex-row justify-between items-center">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Seller Status</h2>
+          <p className="text-sm text-gray-500">Let buyers know if you are available to respond to messages.</p>
+        </div>
+        <button 
+          onClick={() => setShowAvailabilityModal(true)}
+          className={`mt-4 sm:mt-0 flex items-center px-5 py-2 rounded-md font-bold border transition-colors ${isAvailable ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'}`}
+        >
+          <Calendar className="w-5 h-5 mr-2" />
+          {isAvailable ? 'Available' : 'Away'}
+        </button>
       </div>
 
       {error && (
@@ -137,6 +201,72 @@ export default function Dashboard() {
           </ul>
         </div>
       )}
+
+      {/* --- NEW: Availability Modal --- */}
+      {showAvailabilityModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 relative shadow-2xl">
+            
+            {/* Close Button */}
+            <button onClick={() => setShowAvailabilityModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+              <X className="w-6 h-6" />
+            </button>
+
+            <h3 className="text-2xl font-bold text-gray-900 mb-6">Edit your availability</h3>
+
+            {/* Toggle Switch Section */}
+            <div className="mb-6 flex items-start justify-between">
+              <div className="pr-4">
+                <label className="font-bold text-gray-900 block mb-1">All buyers can contact me</label>
+                <p className="text-sm text-gray-500">Turn this off if you are on vacation or have exams and cannot reply quickly.</p>
+              </div>
+              
+              {/* Custom Animated Toggle Switch */}
+              <div 
+                onClick={() => {
+                  setIsAvailable(!isAvailable);
+                  if (isAvailable) setAwayMessage(''); // Clear message if turning back on
+                }}
+                className={`w-14 h-7 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 ease-in-out ${isAvailable ? 'bg-green-500' : 'bg-gray-300'}`}
+              >
+                <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${isAvailable ? 'translate-x-7' : 'translate-x-0'}`}></div>
+              </div>
+            </div>
+
+            {/* Away Message Textbox */}
+            <div className="mb-8">
+              <label className="font-bold text-gray-900 block mb-1">Add a message (Optional)</label>
+              <p className="text-sm text-gray-500 mb-2">Buyers will see this message on your profile and Gig pages.</p>
+              <textarea
+                value={awayMessage}
+                onChange={(e) => setAwayMessage(e.target.value)}
+                disabled={isAvailable}
+                placeholder={isAvailable ? "Turn off availability to leave an away message." : "E.g., Studying for finals! I will reply to messages next Friday."}
+                className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-green-500 focus:outline-none resize-none disabled:bg-gray-100 disabled:text-gray-400"
+                rows="3"
+              ></textarea>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setShowAvailabilityModal(false)} 
+                className="px-4 py-2 font-bold text-gray-600 hover:bg-gray-50 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveAvailability} 
+                disabled={savingAvailability} 
+                className="px-6 py-2 font-bold text-white bg-green-600 hover:bg-green-700 rounded-md disabled:bg-green-400 transition-colors"
+              >
+                {savingAvailability ? 'Saving...' : 'Save changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

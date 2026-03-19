@@ -30,6 +30,9 @@ const userSchema = new mongoose.Schema({
   // --- NEW VERIFICATION FIELDS ---
   isVerified: { type: Boolean, default: false }, // Everyone starts as unverified!
   verificationCode: { type: String }, // Stores the 6-digit code
+  // --- AVAILABILITY SETTINGS ---
+  isAvailable: { type: Boolean, default: true }, // Everyone starts as available
+  awayMessage: { type: String, default: '' },
 }, {
   timestamps: true // Automatically adds createdAt and updatedAt dates
 });

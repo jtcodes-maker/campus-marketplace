@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useParams, useRouter } from 'next/navigation';
-import { Send } from 'lucide-react';
+import { Send, ArrowLeft, MessageSquare, AlertTriangle} from 'lucide-react';
 import Link from 'next/link';
 
 export default function ListingDetails() {
@@ -106,6 +106,30 @@ export default function ListingDetails() {
               </div>
             </div>
           </div>
+
+          {/* --- NEW: Away Message Banner --- */}
+            {listing.seller?.isAvailable === false && (
+              <div className="mb-6 bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-md shadow-sm">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <AlertTriangle className="h-5 w-5 text-orange-500" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-bold text-orange-800">
+                      {listing.seller.name.split(' ')[0]} is currently away
+                    </h3>
+                    <div className="mt-1 text-sm text-orange-700">
+                      <p>
+                        {listing.seller.awayMessage 
+                          ? `"${listing.seller.awayMessage}"` 
+                          : "This seller is currently away and may take longer than usual to respond."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* -------------------------------- */}
 
           {/* Message Box */}
           <div className="border-t border-gray-100 pt-6">
