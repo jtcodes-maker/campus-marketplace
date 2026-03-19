@@ -4,6 +4,59 @@ const Listing = require('../models/Listing'); // The Listing blueprint
 const User = require('../models/User'); // We need the User blueprint to get the seller's info!
 const auth = require('../middleware/auth'); // Our new bouncer!
 const upload = require('../middleware/upload');
+const cloudinary = require('cloudinary').v2;
+
+// Wrap multer so we can explicitly catch and log its background errors!
+const uploadMiddleware = upload.array('images', 5);
+
+// @route   POST /api/listings
+// @desc    Create a new listing with image uploads
+// @access  Private
+router.post('/', auth, (req, res) => {
+  uploadMiddleware(req, res, async (err) => {
+    
+    // 1. Did the background image uploader crash?
+    if (err) {
+      console.error('🚨 Cloudinary/Upload Error:', err);
+      return res.status(500).json({ message: 'Image upload failed. Check terminal.' });
+    }
+
+    try {
+      console.log("✅ Route reached! Form Data:", req.body);
+      console.log("✅ Files processed:", req.files?.length || 0);
+
+      const { title, description, price, category } = req.body;
+
+      // 2. Grab the URLs Cloudinary generated
+      const imageUrls = [];
+      if (req.files && req.files.length > 0) {
+        for (const file of req.files) {
+          imageUrls.push(file.path);
+        }
+      }
+
+      // 3. Save the gig to MongoDB
+      const newListing = new Listing({
+        seller: req.user.id, 
+        title,
+        description,
+        price,
+        category,
+        images: imageUrls,
+      });
+
+      const savedListing = await newListing.save();
+      console.log("✅ Gig saved successfully to database!");
+      res.status(201).json(savedListing);
+
+    } catch (error) {
+      // 4. Did MongoDB crash?
+      console.error('🚨 Database Error:', error);
+      res.status(500).json({ message: 'Server error while saving to database.' });
+    }
+  });
+});
+
 
 // @route   GET /api/listings
 // @desc    Get all active listings (with optional search AND category filters)
@@ -33,33 +86,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// --- ADD THIS NEW ROUTE ---
 
-// @route   GET /api/listings
-// @desc    Get all active listings (with optional search)
-// @access  Public
-router.get('/', async (req, res) => {
-  try {
-    const { search } = req.query; // Look for a search word in the request
-    let query = {}; // Start with an empty filter (get everything)
-
-    // If the user searched for something, update the filter
-    if (search) {
-      // $regex allows partial matches (e.g., "calc" finds "calculus")
-      // $options: 'i' makes it case-insensitive (ignores capital letters)
-      query.title = { $regex: search, $options: 'i' }; 
-    }
-
-    // Find listings using our query filter, sorted by newest first
-    const listings = await Listing.find(query).populate('seller', 'name').sort({ createdAt: -1 });
-    res.json(listings);
-  } catch (error) {
-    console.error('Fetch Listings Error:', error);
-    res.status(500).json({ message: 'Server error while fetching listings' });
-  }
-});
-
-// ---------------------------
 
 // @route   GET /api/listings/me
 // @desc    Get all listings created by the logged-in user
@@ -140,7 +167,7 @@ router.delete('/:id', auth, async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const listing = await Listing.findById(req.params.id)
-      .populate('seller', 'name university profileImage bio');
+      .populate('seller', 'name isAvailable awayMessage');
 
     if (!listing) {
       return res.status(404).json({ message: 'Listing not found' });
