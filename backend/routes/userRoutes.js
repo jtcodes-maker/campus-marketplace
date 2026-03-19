@@ -13,6 +13,17 @@ router.post('/register', async (req, res) => {
     // 1. Grab the data the user typed into the form
     const { name, email, password, university } = req.body;
 
+    // --- NEW: The University Email Bouncer ---
+    // Add any other accepted domains to this list (e.g., NUST or IUM domains later!)
+    const allowedDomains = ['@students.unam.na', '@unam.na', '.edu.na'];
+    const isStudentEmail = allowedDomains.some(domain => email.toLowerCase().endsWith(domain));
+
+    if (!isStudentEmail) {
+      return res.status(400).json({ message: 'Access denied: You must use a valid student email address to join CampusGig!' });
+    }
+    // -----------------------------------------
+
+
     // 2. Check if a student is already registered with this email
     const userExists = await User.findOne({ email });
     if (userExists) {
