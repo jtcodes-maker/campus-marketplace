@@ -1,26 +1,18 @@
-const nodemailer = require('nodemailer');
+const axios = require('axios');
 
 const sendEmail = async (userEmail, code) => {
   try {
-    // 1. Create the "Postman" using your Gmail credentials
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      host: 'smtp.gmail.com', // Explicitly point to Gmail's SMTP
-      port: 587,
-      secure: false,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+    // 1. Package the email data exactly how Brevo expects it
+    const payload = {
+      sender: {
+        name: "CampusGig",
+        email: process.env.EMAIL_USER // This MUST be justinotjerivanga@gmail.com
       },
-      family: 4, // Force IPv4 to avoid potential IPv6 issues
-    });
-
-    // 2. Draft the email
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: userEmail,
-      subject: 'Verify your CampusGig Account',
-      html: `
+      to: [
+        { email: userEmail }
+      ],
+      subject: "Verify your CampusGig Account",
+      htmlContent: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
           <h2 style="color: #16a34a; text-align: center;">Welcome to CampusGig!</h2>
           <p style="color: #333; font-size: 16px;">To complete your registration and verify your student status, please use the 6-digit code below:</p>
@@ -29,14 +21,23 @@ const sendEmail = async (userEmail, code) => {
           </div>
           <p style="color: #666; font-size: 14px; text-align: center;">If you didn't create an account, you can safely ignore this email.</p>
         </div>
-      `,
+      `
     };
 
-    // 3. Send it!
-    await transporter.sendMail(mailOptions);
-    console.log(`Verification email sent successfully to ${userEmail}`);
+    // 2. Send the HTTP POST request to Brevo's API
+    await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
+      headers: {
+        'accept': 'application/json',
+        'api-key': process.env.BREVO_API_KEY,
+        'content-type': 'application/json'
+      }
+    });
+
+    console.log(`✅ Verification email sent successfully via Brevo to ${userEmail}`);
+    
   } catch (error) {
-    console.error("Email sending failed:", error);
+    // If Brevo rejects it, this will print the exact reason why!
+    console.error("🚨 Brevo Email Error:", error.response ? error.response.data : error.message);
     throw new Error('Could not send verification email');
   }
 };
