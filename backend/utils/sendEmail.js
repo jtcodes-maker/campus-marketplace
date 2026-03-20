@@ -5,10 +5,14 @@ const sendEmail = async (userEmail, code) => {
     // 1. Create the "Postman" using your Gmail credentials
     const transporter = nodemailer.createTransport({
       service: 'gmail',
+      host: 'smtp.gmail.com', // Explicitly point to Gmail's SMTP
+      port: 465,
+      secure: true,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+      family: 4, // Force IPv4 to avoid potential IPv6 issues
     });
 
     // 2. Draft the email
