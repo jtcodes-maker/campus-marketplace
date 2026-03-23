@@ -16,12 +16,15 @@ export default function Register() {
   
   // 2. Status State
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
   // 3. Handle Form Submission
   const handleRegister = async (e) => {
     e.preventDefault();
+    // Clear old messages
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
@@ -33,9 +36,13 @@ export default function Register() {
         university
       });
 
-      // Success! Send them to the login page so they can sign in
-      alert("Account created successfully! Please sign in.");
-      router.push(`/verify?email=${encodeURIComponent(email)}`);
+      // Show the beautiful green success box
+      setSuccess("Account created successfully! Redirecting to verification...");
+      
+      // Give the user 2 seconds to read the success message before switching pages
+      setTimeout(() => {
+        router.push(`/verify?email=${encodeURIComponent(email)}`);
+      }, 2000);
       
     } catch (err) {
       console.error(err);
@@ -53,11 +60,19 @@ export default function Register() {
           Join CampusGig
         </h2>
 
+        {/* --- UI MESSAGE BOXES --- */}
         {error && (
-          <div className="bg-red-50 text-red-500 p-3 rounded-md mb-4 text-sm text-center">
+          <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded-md shadow-sm text-sm font-medium">
             {error}
           </div>
         )}
+
+        {success && (
+          <div className="bg-green-50 border-l-4 border-green-500 text-green-800 p-4 mb-6 rounded-md shadow-sm text-sm font-medium">
+            {success}
+          </div>
+        )}
+        {/* ------------------------ */}
 
         <form onSubmit={handleRegister} className="space-y-4">
           
@@ -83,7 +98,7 @@ export default function Register() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900"
-              placeholder="john.doe@university.edu"
+              placeholder="john.doe@students.unam.na"
             />
           </div>
 
