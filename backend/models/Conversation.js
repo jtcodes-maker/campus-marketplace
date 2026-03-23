@@ -15,7 +15,8 @@ const storage = new CloudinaryStorage({
   params: {
     folder: 'campus_marketplace', 
     allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-    moderation: 'aws_rek' // <-- NEW: The AI Moderation Shield!
+    upload_preset: 'ml_default', // <-- THIS IS THE MISSING LINK! It forces the AI preset.
+    moderation: 'aws_rek'        // <-- Backup command just in case.
   }
 });
 
