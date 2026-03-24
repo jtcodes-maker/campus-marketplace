@@ -6,6 +6,13 @@ const auth = require('../middleware/auth'); // Our new bouncer!
 const upload = require('../middleware/upload');
 const cloudinary = require('cloudinary').v2;
 
+// --- 🛡️ THE TEXT SHIELD SETUP 🛡️ ---
+const Filter = require('bad-words');
+const filter = new Filter();
+// Add CampusGig's custom blacklist!
+filter.addWords('nude', 'nudes', 'onlyfans', 'hookup', 'sugar', 'daddy', 'mommy');
+// -----------------------------------
+
 // Wrap multer so we can explicitly catch and log its background errors!
 const uploadMiddleware = upload.array('images', 5);
 
@@ -26,6 +33,16 @@ router.post('/', auth, (req, res) => {
       console.log("✅ Files processed:", req.files?.length || 0);
 
       const { title, description, price, category } = req.body;
+
+      // --- 🛑 THE TEXT SHIELD CHECK 🛑 ---
+      // Scan the title and description for anything on the blacklist
+      // If title or description are missing, we default to empty strings to prevent crashes
+      if (filter.isProfane(title || '') || filter.isProfane(description || '')) {
+        return res.status(400).json({ 
+          message: 'Your listing contains inappropriate language. Please keep CampusGig professional.' 
+        });
+      }
+      // -----------------------------------
 
       // 2. Grab the URLs Cloudinary generated
       const imageUrls = [];
@@ -87,7 +104,6 @@ router.get('/', async (req, res) => {
 });
 
 
-
 // @route   GET /api/listings/me
 // @desc    Get all listings created by the logged-in user
 // @access  Private
@@ -101,6 +117,7 @@ router.get('/me', auth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 // @route   PUT /api/listings/:id
 // @desc    Update a listing's text details
@@ -121,6 +138,14 @@ router.put('/:id', auth, async (req, res) => {
     // Grab the new data from the request
     const { title, description, price, category } = req.body;
 
+    // --- 🛑 TEXT SHIELD ON EDITS 🛑 ---
+    if (filter.isProfane(title || '') || filter.isProfane(description || '')) {
+      return res.status(400).json({ 
+        message: 'Your update contains inappropriate language. Please keep CampusGig professional.' 
+      });
+    }
+    // ----------------------------------
+
     // Update the fields (if a field wasn't changed, keep the old one)
     listing.title = title || listing.title;
     listing.description = description || listing.description;
@@ -135,6 +160,7 @@ router.put('/:id', auth, async (req, res) => {
     res.status(500).json({ message: 'Server error while updating listing' });
   }
 });
+
 
 // @route   DELETE /api/listings/:id
 // @desc    Delete a listing
@@ -161,6 +187,7 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
+
 // @route   GET /api/listings/:id
 // @desc    Get a single listing by its ID
 // @access  Public
@@ -183,6 +210,7 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 // @route   GET /api/listings/seller/:id
 // @desc    Get a public seller profile AND their active listings
