@@ -87,7 +87,7 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="Your secure password"
+              placeholder="Create a secure password"
               required
             />
           </div>
