@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema({
   },
   profileImage: {
     type: String,
-    default: 'default-avatar.png',
+    default: "" // by default, they have no picture
   },
   // --- NEW VERIFICATION FIELDS ---
   isVerified: { type: Boolean, default: false }, // Everyone starts as unverified!

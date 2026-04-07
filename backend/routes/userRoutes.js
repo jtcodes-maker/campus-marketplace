@@ -5,6 +5,9 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User'); // Import the User blueprint we made earlier
 const sendEmail = require('../utils/sendEmail');
 const auth = require('../middleware/auth');
+// --- 📸 NEW: Import the Cloudinary uploader ---
+const upload = require('../middleware/upload');
+
 
 // @route   POST /api/users/register
 // @desc    Register a new student
@@ -196,6 +199,47 @@ router.put('/availability', auth, async (req, res) => {
   } catch (error) {
     console.error('Availability Update Error:', error);
     res.status(500).json({ message: 'Server error while updating availability' });
+  }
+});
+
+// @route   PUT /api/users/profile
+// @desc    Update user profile (name and profile image)
+// @access  Private
+router.put('/profile', auth, upload.single('profileImage'), async (req, res) => {
+  try {
+    // 1. Find the logged-in user in the database
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // 2. Update the name (if they typed a new one)
+    if (req.body.name) {
+      user.name = req.body.name;
+    }
+
+    // 3. Update the profile picture (if they uploaded a new one)
+    // Cloudinary automatically catches the file and gives us the secure URL in req.file.path
+    if (req.file) {
+      user.profileImage = req.file.path;
+    }
+
+    // 4. Save the updated user to MongoDB
+    await user.save();
+
+    // 5. Send the fresh data back to the frontend
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      profileImage: user.profileImage,
+      message: 'Profile updated successfully!'
+    });
+
+  } catch (error) {
+    console.error('Profile Update Error:', error);
+    res.status(500).json({ message: 'Server error while updating profile' });
   }
 });
 
