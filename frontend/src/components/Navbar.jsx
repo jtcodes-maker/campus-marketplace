@@ -29,11 +29,11 @@ export default function Navbar() {
   const handleSearch = (e) => {
     e.preventDefault(); // Stop the page from reloading
     if (searchTerm.trim()) {
-    setIsMobileMenuOpen(false); // Close mobile menu if it's open
-    router.push(`/?search=${searchTerm}`); // Send them to the homepage with the search query in the URL!
+      setIsMobileMenuOpen(false); // Close mobile menu if it's open
+      router.push(`/?search=${searchTerm}`); // Send them to the homepage with the search query in the URL!
     } else {
-    router.push(`/`); // If search is empty, just go to the normal homepage
-   }
+      router.push(`/`); // If search is empty, just go to the normal homepage
+    }
   };
 
   return (
@@ -55,12 +55,12 @@ export default function Navbar() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Find services, products,textbooks or tutoring..."
+                placeholder="Find services, products, textbooks or tutoring..."
                 className="w-full border border-gray-300 rounded-l-md py-2 pl-4 pr-3 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <button type="submit" className="bg-green-600 flex items-center justify-center px-4 rounded-r-md hover:bg-green-700 transition-colors">
-                  <Search className="h-5 w-5 text-white" />
-                </button>
+              />
+              <button type="submit" className="bg-green-600 flex items-center justify-center px-4 rounded-r-md hover:bg-green-700 transition-colors">
+                <Search className="h-5 w-5 text-white" />
+              </button>
             </form>
           </div>
 
@@ -77,6 +77,9 @@ export default function Navbar() {
                 </Link>
                 <Link href="/inbox" className="text-gray-600 hover:text-green-600 font-semibold mr-4 transition-colors">
                   Inbox
+                </Link>
+                <Link href="/settings" className="text-gray-600 hover:text-green-600 font-semibold mr-4 transition-colors">
+                  Settings
                 </Link>
                 <Link href="/create-listing" className="flex items-center bg-white text-green-600 border border-green-600 px-4 py-2 rounded-md font-semibold hover:bg-green-50 transition-colors">
                   <PlusCircle className="w-4 h-4 mr-2" /> Post a Gig
@@ -111,7 +114,7 @@ export default function Navbar() {
         <div className="md:hidden bg-white border-t border-gray-100 shadow-lg absolute w-full left-0">
           <div className="px-4 pt-4 pb-6 space-y-3">
             
-            {/* --- NEW: MOBILE SEARCH BAR --- */}
+            {/* MOBILE SEARCH BAR */}
             <form onSubmit={handleSearch} className="relative w-full flex mb-4">
               <input
                 type="text"
@@ -125,8 +128,6 @@ export default function Navbar() {
               </button>
             </form>
 
-            {/* ----------------------------- */}
-
             {user ? (
               <>
                 <div className="flex items-center text-gray-800 px-3 py-3 font-semibold border-b border-gray-100 mb-2 bg-gray-50 rounded-md">
@@ -135,6 +136,7 @@ export default function Navbar() {
                 </div>
                 <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-green-50 hover:text-green-600">Dashboard</Link>
                 <Link href="/inbox" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-green-50 hover:text-green-600">Inbox</Link>
+                <Link href="/settings" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-green-50 hover:text-green-600">Settings</Link>
                 <Link href="/create-listing" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center px-3 py-2 rounded-md text-base font-medium text-green-600 bg-green-50">
                   <PlusCircle className="w-5 h-5 mr-2" /> Post a Gig
                 </Link>
