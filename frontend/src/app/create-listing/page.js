@@ -66,7 +66,7 @@ export default function CreateListing() {
       // Success! Send them to the homepage
       router.push('/');
     } catch (err) {
-      console.error(err);
+      //console.error(err);
       setError(err.response?.data?.message || 'Failed to create listing. Please try again.');
     } finally {
       setLoading(false);

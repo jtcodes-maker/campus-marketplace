@@ -5,13 +5,15 @@ import axios from 'axios';
 import { useParams, useRouter } from 'next/navigation';
 import { Send, ArrowLeft, MessageSquare, AlertTriangle} from 'lucide-react';
 import Link from 'next/link';
+import ReportButton from '@/components/ReportButton';
 
 export default function ListingDetails() {
-  const { id } = useParams(); // Grabs the specific item ID from the URL
+  const { id } = useParams(); 
   const router = useRouter();
   
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
   
   // Message States
   const [messageContent, setMessageContent] = useState('');
@@ -19,6 +21,12 @@ export default function ListingDetails() {
   const [messageSent, setMessageSent] = useState(false);
 
   useEffect(() => {
+    // Safely grab the logged-in user from localStorage on the client side
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      setCurrentUser(JSON.parse(storedUser));
+    }
+
     const fetchListing = async () => {
       try {
         const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/listings/${id}`);
@@ -42,7 +50,6 @@ export default function ListingDetails() {
       return;
     }
 
-    // NEW: Don't let them hit send if the box is just empty spaces!
     if (!messageContent.trim()) {
       alert("Please type a message before sending!");
       return;
@@ -51,15 +58,15 @@ export default function ListingDetails() {
     setSending(true);
     try {
       await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/messages`, {
-        receiverId: listing.seller._id,
+        receiverId: listing.seller?._id,
         listingId: listing._id,
-        content: messageContent.trim() // Force it to send the text properly
+        content: messageContent.trim() 
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       setMessageSent(true);
-      setMessageContent(''); // Clear the box after sending
+      setMessageContent(''); 
     } catch (err) {
       console.error("Sending failed:", err.response?.data || err.message);
       alert("Failed to send message. Please try again.");
@@ -78,7 +85,7 @@ export default function ListingDetails() {
         {/* Left Side: Big Image */}
         <div className="md:w-1/2 h-80 md:h-auto bg-gray-100 border-r border-gray-200">
           <img 
-            src={listing.images[0] || 'https://via.placeholder.com/600'} 
+            src={listing.images?.[0] || 'https://via.placeholder.com/600'} 
             alt={listing.title} 
             className="w-full h-full object-cover"
           />
@@ -94,20 +101,38 @@ export default function ListingDetails() {
             <h3 className="font-semibold text-gray-900 mb-2">Description</h3>
             <p className="text-gray-600 mb-8 leading-relaxed">{listing.description}</p>
             
-            <div className="flex items-center mb-8 p-4 bg-gray-50 rounded-lg border border-gray-100">
-              <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center text-green-700 font-bold text-xl mr-4">
-                {listing.seller?.name?.charAt(0) || '?'}
+            {/* --- SELLER PROFILE CARD --- */}
+            <div className="flex flex-wrap items-center justify-between mb-8 p-4 bg-gray-50 rounded-lg border border-gray-100 gap-4">
+              
+              {/* Left Side: Avatar & Name */}
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-12 w-12 shrink-0 bg-green-100 rounded-full flex items-center justify-center text-green-700 font-bold text-xl">
+                  {listing.seller?.name?.charAt(0) || '?'}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Listed by</p>
+                  <Link href={`/profile/${listing.seller?._id || listing.seller}`} className="font-bold text-gray-900 text-lg hover:text-green-600 hover:underline transition-colors truncate block">
+                    {listing.seller?.name}
+                  </Link>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Listed by</p>
-                <Link href={`/profile/${listing.seller?._id}`} className="font-bold text-gray-900 text-lg hover:text-green-600 hover:underline transition-colors">
-                  {listing.seller?.name}
-                </Link>
+              
+              {/* Right Side: Mobile-Safe Report Button */}
+              <div className="shrink-0 ml-auto">
+                {/* Safely check all MongoDB ID variations to ensure it renders for visitors */}
+                {((currentUser?._id || currentUser?.id || currentUser?.user?._id) !== (listing.seller?._id || listing.seller)) && (
+                  <ReportButton 
+                    sellerId={listing.seller?._id || listing.seller} 
+                    currentUserId={currentUser?._id || currentUser?.id || currentUser?.user?._id || null} 
+                  />
+                )}
               </div>
+              
             </div>
+            {/* --------------------------- */}
           </div>
 
-          {/* --- NEW: Away Message Banner --- */}
+          {/* --- Away Message Banner --- */}
             {listing.seller?.isAvailable === false && (
               <div className="mb-6 bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-md shadow-sm">
                 <div className="flex">
@@ -116,11 +141,11 @@ export default function ListingDetails() {
                   </div>
                   <div className="ml-3">
                     <h3 className="text-sm font-bold text-orange-800">
-                      {listing.seller.name.split(' ')[0]} is currently away
+                      {listing.seller?.name?.split(' ')[0]} is currently away
                     </h3>
                     <div className="mt-1 text-sm text-orange-700">
                       <p>
-                        {listing.seller.awayMessage 
+                        {listing.seller?.awayMessage 
                           ? `"${listing.seller.awayMessage}"` 
                           : "This seller is currently away and may take longer than usual to respond."}
                       </p>
@@ -145,7 +170,7 @@ export default function ListingDetails() {
                   required
                   value={messageContent}
                   onChange={(e) => setMessageContent(e.target.value)}
-                  placeholder={`Hi ${listing.seller?.name?.split(' ')[0]}, is this still available?`}
+                  placeholder={`Hi ${listing.seller?.name?.split(' ')[0] || 'there'}, is this still available?`}
                   className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-green-500 focus:outline-none resize-none"
                   rows="3"
                 ></textarea>
