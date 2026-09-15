@@ -10,11 +10,27 @@ const ReportButton = ({ sellerId, currentUserId }) => {
   const [feedbackMessage, setFeedbackMessage] = useState('');
 
   const handleReportClick = () => {
+    // 1. SAFETY GUARD: Prevent guest users from sending "null" IDs to the backend
+    if (!currentUserId || currentUserId === 'null' || currentUserId === 'undefined') {
+      setFeedbackMessage("You must be logged in to report a user.");
+      setTimeout(() => setFeedbackMessage(''), 4000);
+      return;
+    }
+
+    // 2. SAFETY GUARD: Ensure the seller actually has an ID
+    if (!sellerId || sellerId === 'null') {
+      setFeedbackMessage("Error: Cannot identify the seller.");
+      setTimeout(() => setFeedbackMessage(''), 4000);
+      return;
+    }
+
+    // 3. Prevent self-reporting
     if (sellerId === currentUserId) {
       setFeedbackMessage("You cannot report yourself.");
       setTimeout(() => setFeedbackMessage(''), 3000); 
       return;
     }
+    
     setShowModal(true);
   };
 
@@ -36,7 +52,6 @@ const ReportButton = ({ sellerId, currentUserId }) => {
       setTimeout(() => setFeedbackMessage(''), 4000);
 
     } catch (error) {
-      //console.error(error);
       setFeedbackMessage(error.response?.data?.message || "An error occurred while reporting.");
       setShowModal(false); 
       setTimeout(() => setFeedbackMessage(''), 4000);
@@ -64,7 +79,6 @@ const ReportButton = ({ sellerId, currentUserId }) => {
 
       {/* --- CUSTOM REACT MODAL --- */}
       {showModal && (
-        // REPLACED 'bg-black bg-opacity-60' with 'bg-gray-900/40 backdrop-blur-sm'
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm px-4 transition-opacity">
           
           {/* Modal Container */}
