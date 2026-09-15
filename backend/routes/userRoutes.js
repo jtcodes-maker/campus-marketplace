@@ -259,4 +259,41 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
+// @route   POST /api/users/:id/report
+// @desc    Report a user for suspicious activity
+// @access  Private (Only logged-in students can report)
+router.post('/:id/report', auth, async (req, res) => {
+  try {
+    // You cannot report yourself
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ message: "You cannot report yourself." });
+    }
+
+    const suspiciousUser = await User.findById(req.params.id);
+    if (!suspiciousUser) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    // Anti-Spam Check: Did this student already report this user?
+    if (suspiciousUser.reportedBy.includes(req.user.id)) {
+      return res.status(400).json({ message: "You have already reported this user." });
+    }
+
+    // Add the reporter's ID to the list and increment the count
+    suspiciousUser.reportedBy.push(req.user.id);
+    suspiciousUser.reportCount += 1;
+
+    await suspiciousUser.save();
+
+    res.json({ 
+      success: true, 
+      message: "User reported successfully. Our Trust & Safety system has been notified." 
+    });
+
+  } catch (error) {
+    console.error("Report User Error:", error);
+    res.status(500).json({ message: "Server error while processing report." });
+  }
+});
+
 module.exports = router;

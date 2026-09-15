@@ -5,6 +5,7 @@ const User = require('../models/User'); // We need the User blueprint to get the
 const auth = require('../middleware/auth'); // Our new bouncer!
 const upload = require('../middleware/upload');
 const cloudinary = require('cloudinary').v2;
+const axios = require('axios');
 
 // --- 🛡️ THE TEXT SHIELD SETUP 🛡️ ---
 const Filter = require('bad-words');
@@ -35,8 +36,6 @@ router.post('/', auth, (req, res) => {
       const { title, description, price, category } = req.body;
 
       // --- 🛑 THE TEXT SHIELD CHECK 🛑 ---
-      // Scan the title and description for anything on the blacklist
-      // If title or description are missing, we default to empty strings to prevent crashes
       if (filter.isProfane(title || '') || filter.isProfane(description || '')) {
         return res.status(400).json({ 
           message: 'Your listing contains inappropriate language. Please keep CampusGig professional.' 
@@ -52,7 +51,48 @@ router.post('/', auth, (req, res) => {
         }
       }
 
-      // 3. Save the gig to MongoDB
+      // --- 🤖 THE AI TRUST & SAFETY SHIELD 🤖 ---
+      let aiScore = 0;
+      let aiFlags = [];
+
+      try {
+        const sellerData = await User.findById(req.user.id);
+        
+        const aiPayload = {
+          listing_id: "NEW_POST",
+          title: title,             // <-- ADD THIS
+          category: category,       // <-- ADD THIS
+          description: description, 
+          price_cleaned: parseFloat(price),
+          desc_length: description ? description.length : 0,
+          report_count: sellerData.reportCount || 0,
+          repost_count: sellerData.repostCount || 0,
+          off_platform_request: 0, 
+          urgency_flag: 0,
+          price_risk: 0 
+        };
+
+        console.log("🤖 Asking AI for clearance...");
+        // Change the port from 5000 to 5001
+        const aiResponse = await axios.post('http://localhost:5001/evaluate_listing', aiPayload);
+        const riskData = aiResponse.data;
+
+        aiScore = riskData.metadata_risk_score || 0;
+        aiFlags = riskData.explanations || [];
+
+        if (riskData.risk_label === 'High-risk') {
+          console.warn(`[BLOCKED] Listing rejected by AI: ${aiFlags.join(', ')}`);
+          return res.status(403).json({
+            message: 'Listing blocked by Trust & Safety AI.',
+            flags: aiFlags
+          });
+        }
+      } catch (aiError) {
+        console.error("🚨 AI Server unreachable, proceeding cautiously:", aiError.message);
+      }
+      // ------------------------------------------
+
+      // 3. Save the gig to MongoDB (Including AI Data)
       const newListing = new Listing({
         seller: req.user.id, 
         title,
@@ -60,6 +100,8 @@ router.post('/', auth, (req, res) => {
         price,
         category,
         images: imageUrls,
+        ai_risk_score: aiScore,
+        ai_flags: aiFlags
       });
 
       const savedListing = await newListing.save();
@@ -67,7 +109,6 @@ router.post('/', auth, (req, res) => {
       res.status(201).json(savedListing);
 
     } catch (error) {
-      // 4. Did MongoDB crash?
       console.error('🚨 Database Error:', error);
       res.status(500).json({ message: 'Server error while saving to database.' });
     }
@@ -80,21 +121,17 @@ router.post('/', auth, (req, res) => {
 // @access  Public
 router.get('/', async (req, res) => {
   try {
-    // 1. Grab BOTH search and category from the URL!
     const { search, category } = req.query; 
     let query = {}; 
 
-    // 2. If they typed a search, add it to the filter
     if (search) {
       query.title = { $regex: search, $options: 'i' }; 
     }
     
-    // 3. If they clicked a category button, add it to the filter
     if (category) {
       query.category = category; 
     }
 
-    // 4. Find the listings that match our combined filters
     const listings = await Listing.find(query).populate('seller', 'name').sort({ createdAt: -1 });
     res.json(listings);
   } catch (error) {
@@ -109,7 +146,6 @@ router.get('/', async (req, res) => {
 // @access  Private
 router.get('/me', auth, async (req, res) => {
   try {
-    // Find all listings where the 'seller' matches the logged-in user's ID
     const listings = await Listing.find({ seller: req.user.id }).sort({ createdAt: -1 });
     res.json(listings);
   } catch (error) {
@@ -130,12 +166,10 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(404).json({ message: 'Listing not found' });
     }
 
-    // Security Check: Make sure the person editing is the one who created it!
     if (listing.seller.toString() !== req.user.id) {
       return res.status(401).json({ message: 'User not authorized to edit this item' });
     }
 
-    // Grab the new data from the request
     const { title, description, price, category } = req.body;
 
     // --- 🛑 TEXT SHIELD ON EDITS 🛑 ---
@@ -146,7 +180,42 @@ router.put('/:id', auth, async (req, res) => {
     }
     // ----------------------------------
 
-    // Update the fields (if a field wasn't changed, keep the old one)
+    // --- 🤖 THE AI TRUST & SAFETY SHIELD (ON EDIT) 🤖 ---
+    try {
+      const sellerData = await User.findById(req.user.id);
+      
+      const aiPayload = {
+        listing_id: `EDIT_${listing._id}`,
+        price_cleaned: parseFloat(price || listing.price),
+        desc_length: description ? description.length : listing.description.length,
+        report_count: sellerData.reportCount || 0,
+        repost_count: sellerData.repostCount || 0,
+        off_platform_request: 0,
+        urgency_flag: 0,
+        price_risk: 0
+      };
+
+      console.log("🤖 Asking AI for edit clearance...");
+      const aiResponse = await axios.post('http://localhost:5000/evaluate_listing', aiPayload);
+      const riskData = aiResponse.data;
+
+      if (riskData.risk_label === 'High-risk') {
+        console.warn(`[BLOCKED] Listing edit rejected by AI: ${(riskData.explanations || []).join(', ')}`);
+        return res.status(403).json({
+          message: 'Your update was blocked by the Trust & Safety AI.',
+          flags: riskData.explanations || []
+        });
+      }
+      
+      // Update AI tracking stats on the listing
+      listing.ai_risk_score = riskData.metadata_risk_score || 0;
+      listing.ai_flags = riskData.explanations || [];
+
+    } catch (aiError) {
+      console.error("🚨 AI Server unreachable during edit, proceeding cautiously:", aiError.message);
+    }
+    // ----------------------------------------------------
+
     listing.title = title || listing.title;
     listing.description = description || listing.description;
     listing.price = price || listing.price;
@@ -173,7 +242,6 @@ router.delete('/:id', auth, async (req, res) => {
       return res.status(404).json({ message: 'Listing not found' });
     }
 
-    // Security Check: Ensure the person deleting it actually owns it!
     if (listing.seller.toString() !== req.user.id) {
       return res.status(401).json({ message: 'User not authorized to delete this item' });
     }
@@ -203,7 +271,6 @@ router.get('/:id', async (req, res) => {
     res.json(listing);
   } catch (error) {
     console.error('Fetch Single Listing Error:', error);
-    // If the ID is completely malformed, it throws a specific error
     if (error.kind === 'ObjectId') {
       return res.status(404).json({ message: 'Listing not found' });
     }
@@ -217,19 +284,16 @@ router.get('/:id', async (req, res) => {
 // @access  Public
 router.get('/seller/:id', async (req, res) => {
   try {
-    // 1. Find the seller's public info (Exclude their password and email for security!)
     const seller = await User.findById(req.params.id).select('-password -email');
     
     if (!seller) {
       return res.status(404).json({ message: 'Seller not found' });
     }
 
-    // 2. Find all listings created by this specific seller
     const listings = await Listing.find({ seller: req.params.id })
       .populate('seller', 'name')
       .sort({ createdAt: -1 });
 
-    // 3. Package them together and send them to the frontend!
     res.json({ seller, listings });
   } catch (error) {
     console.error('Fetch Seller Profile Error:', error);

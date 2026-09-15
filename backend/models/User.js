@@ -27,6 +27,15 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: "" // by default, they have no picture
   },
+  reportCount: {
+    type: Number,
+    default: 0
+  },
+  // Tracks who reported them to prevent duplicate reports from the same person
+  reportedBy: [
+    { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  ],
+  
   // --- NEW VERIFICATION FIELDS ---
   isVerified: { type: Boolean, default: false }, // Everyone starts as unverified!
   verificationCode: { type: String }, // Stores the 6-digit code

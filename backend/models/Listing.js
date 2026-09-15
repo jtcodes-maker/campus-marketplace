@@ -31,7 +31,14 @@ const listingSchema = new mongoose.Schema({
     type: String,
     default: 'Active',
     enum: ['Active', 'Sold', 'Draft'],
-  }
+  },
+  ai_risk_score: {
+    type: Number,
+    default: 0
+  },
+  ai_flags: [
+    { type: String } // Stores the exact reasons the AI flagged it
+  ]
 }, {
   timestamps: true
 });
