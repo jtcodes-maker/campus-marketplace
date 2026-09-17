@@ -73,7 +73,16 @@ router.post('/', auth, (req, res) => {
         };
 
         console.log("🤖 Asking AI for clearance...");
-        const aiResponse = await axios.post('http://marketplace-ai-scamdetector:10000/evaluate_listing', aiPayload);
+        const aiResponse = await axios.post(
+          'https://marketplace-ai-scamdetector.onrender.com/evaluate_listing', 
+          aiPayload,
+          {
+           headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
+              'Accept': 'application/json'
+           }
+          }
+      );
         const riskData = aiResponse.data;
 
         aiScore = riskData.metadata_risk_score || 0;
