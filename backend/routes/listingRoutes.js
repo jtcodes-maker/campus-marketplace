@@ -5,7 +5,6 @@ const User = require('../models/User'); // We need the User blueprint to get the
 const auth = require('../middleware/auth'); // Our new bouncer!
 const upload = require('../middleware/upload');
 const cloudinary = require('cloudinary').v2;
-const axios = require('axios');
 
 // --- 🛡️ THE TEXT SHIELD SETUP 🛡️ ---
 const Filter = require('bad-words');
@@ -30,10 +29,10 @@ router.post('/', auth, (req, res) => {
     }
 
     try {
-      console.log("✅ Route reached! Form Data:", req.body);
-      console.log("✅ Files processed:", req.files?.length || 0);
+      console.log("✅ Route reached! Files processed:", req.files?.length || 0);
 
-      const { title, description, price, category } = req.body;
+      // Extract the form fields AND the AI data sent from the frontend bypass
+      const { title, description, price, category, ai_evaluation } = req.body;
 
       // --- 🛑 THE TEXT SHIELD CHECK 🛑 ---
       if (filter.isProfane(title || '') || filter.isProfane(description || '')) {
@@ -51,52 +50,31 @@ router.post('/', auth, (req, res) => {
         }
       }
 
-      // --- 🤖 THE AI TRUST & SAFETY SHIELD 🤖 ---
+      // --- 🤖 THE AI TRUST & SAFETY SHIELD (Frontend Payload) 🤖 ---
       let aiScore = 0;
       let aiFlags = [];
 
-      try {
-        const sellerData = await User.findById(req.user.id);
-        
-        const aiPayload = {
-          listing_id: "NEW_POST",
-          title: title,             // <-- ADD THIS
-          category: category,       // <-- ADD THIS
-          description: description, 
-          price_cleaned: parseFloat(price),
-          desc_length: description ? description.length : 0,
-          report_count: sellerData.reportCount || 0,
-          repost_count: sellerData.repostCount || 0,
-          off_platform_request: 0, 
-          urgency_flag: 0,
-          price_risk: 0 
-        };
+      if (ai_evaluation) {
+        try {
+          // Parse the stringified JSON sent by the frontend FormData
+          const riskData = JSON.parse(ai_evaluation);
+          console.log("🤖 Received AI clearance from frontend:", riskData.risk_label);
 
-        console.log("🤖 Asking AI for clearance...");
-        const aiResponse = await axios.post(
-          'https://marketplace-ai-scamdetector.onrender.com/evaluate_listing', 
-          aiPayload,
-          {
-           headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
-              'Accept': 'application/json'
-           }
+          aiScore = riskData.metadata_risk_score || 0;
+          aiFlags = riskData.explanations || [];
+
+          if (riskData.risk_label === 'High-risk') {
+            console.warn(`[BLOCKED] Listing rejected by AI: ${aiFlags.join(', ')}`);
+            return res.status(403).json({
+              message: 'Listing blocked by Trust & Safety AI.',
+              flags: aiFlags
+            });
           }
-      );
-        const riskData = aiResponse.data;
-
-        aiScore = riskData.metadata_risk_score || 0;
-        aiFlags = riskData.explanations || [];
-
-        if (riskData.risk_label === 'High-risk') {
-          console.warn(`[BLOCKED] Listing rejected by AI: ${aiFlags.join(', ')}`);
-          return res.status(403).json({
-            message: 'Listing blocked by Trust & Safety AI.',
-            flags: aiFlags
-          });
+        } catch (parseError) {
+          console.error("🚨 Failed to parse AI evaluation from frontend:", parseError.message);
         }
-      } catch (aiError) {
-        console.error("🚨 AI Server unreachable, proceeding cautiously:", aiError.message);
+      } else {
+        console.log("⚠️ No AI evaluation attached, proceeding cautiously.");
       }
       // ------------------------------------------
 
@@ -178,7 +156,8 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(401).json({ message: 'User not authorized to edit this item' });
     }
 
-    const { title, description, price, category } = req.body;
+    // Extract the ai_evaluation string if the frontend sends it during an edit
+    const { title, description, price, category, ai_evaluation } = req.body;
 
     // --- 🛑 TEXT SHIELD ON EDITS 🛑 ---
     if (filter.isProfane(title || '') || filter.isProfane(description || '')) {
@@ -189,38 +168,25 @@ router.put('/:id', auth, async (req, res) => {
     // ----------------------------------
 
     // --- 🤖 THE AI TRUST & SAFETY SHIELD (ON EDIT) 🤖 ---
-    try {
-      const sellerData = await User.findById(req.user.id);
-      
-      const aiPayload = {
-        listing_id: `EDIT_${listing._id}`,
-        price_cleaned: parseFloat(price || listing.price),
-        desc_length: description ? description.length : listing.description.length,
-        report_count: sellerData.reportCount || 0,
-        repost_count: sellerData.repostCount || 0,
-        off_platform_request: 0,
-        urgency_flag: 0,
-        price_risk: 0
-      };
+    if (ai_evaluation) {
+      try {
+        const riskData = JSON.parse(ai_evaluation);
+        console.log("🤖 Received AI edit clearance from frontend:", riskData.risk_label);
 
-      console.log("🤖 Asking AI for edit clearance...");
-      const aiResponse = await axios.post('http://localhost:5000/evaluate_listing', aiPayload);
-      const riskData = aiResponse.data;
-
-      if (riskData.risk_label === 'High-risk') {
-        console.warn(`[BLOCKED] Listing edit rejected by AI: ${(riskData.explanations || []).join(', ')}`);
-        return res.status(403).json({
-          message: 'Your update was blocked by the Trust & Safety AI.',
-          flags: riskData.explanations || []
-        });
+        if (riskData.risk_label === 'High-risk') {
+          console.warn(`[BLOCKED] Listing edit rejected by AI: ${(riskData.explanations || []).join(', ')}`);
+          return res.status(403).json({
+            message: 'Your update was blocked by the Trust & Safety AI.',
+            flags: riskData.explanations || []
+          });
+        }
+        
+        // Update AI tracking stats on the listing
+        listing.ai_risk_score = riskData.metadata_risk_score || 0;
+        listing.ai_flags = riskData.explanations || [];
+      } catch (parseError) {
+        console.error("🚨 Failed to parse AI evaluation during edit:", parseError.message);
       }
-      
-      // Update AI tracking stats on the listing
-      listing.ai_risk_score = riskData.metadata_risk_score || 0;
-      listing.ai_flags = riskData.explanations || [];
-
-    } catch (aiError) {
-      console.error("🚨 AI Server unreachable during edit, proceeding cautiously:", aiError.message);
     }
     // ----------------------------------------------------
 
