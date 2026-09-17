@@ -34,6 +34,17 @@ router.post('/', auth, (req, res) => {
       // Extract the form fields AND the AI data sent from the frontend bypass
       const { title, description, price, category, ai_evaluation } = req.body;
 
+      // --- 🚨 ACCOUNT STANDING OVERRIDE 🚨 ---
+      // The backend checks the user's reputation before letting the gig pass
+      const sellerData = await User.findById(req.user.id);
+      if (sellerData && (sellerData.reportCount >= 2)) {
+        console.warn(`[BLOCKED] Restricted seller ${req.user.id} tried to post. Reports: ${sellerData.reportCount}`);
+        return res.status(403).json({ 
+          message: 'Your account is temporarily restricted from posting new gigs due to multiple community reports.' 
+        });
+      }
+      // ----------------------------------------
+
       // --- 🛑 THE TEXT SHIELD CHECK 🛑 ---
       if (filter.isProfane(title || '') || filter.isProfane(description || '')) {
         return res.status(400).json({ 
@@ -158,6 +169,16 @@ router.put('/:id', auth, async (req, res) => {
 
     // Extract the ai_evaluation string if the frontend sends it during an edit
     const { title, description, price, category, ai_evaluation } = req.body;
+
+    // --- 🚨 ACCOUNT STANDING OVERRIDE (ON EDIT) 🚨 ---
+    const sellerData = await User.findById(req.user.id);
+    if (sellerData && (sellerData.reportCount >= 2)) {
+      console.warn(`[BLOCKED] Restricted seller ${req.user.id} tried to edit a post. Reports: ${sellerData.reportCount}`);
+      return res.status(403).json({ 
+        message: 'Your account is temporarily restricted from modifying gigs due to multiple community reports.' 
+      });
+    }
+    // ------------------------------------------------
 
     // --- 🛑 TEXT SHIELD ON EDITS 🛑 ---
     if (filter.isProfane(title || '') || filter.isProfane(description || '')) {
