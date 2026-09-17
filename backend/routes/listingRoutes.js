@@ -74,7 +74,7 @@ router.post('/', auth, (req, res) => {
 
         console.log("🤖 Asking AI for clearance...");
         // Change the port from 5000 to 5001
-        const aiResponse = await axios.post('http://localhost:5001/evaluate_listing', aiPayload);
+        const aiResponse = await axios.post('https://marketplace-ai-scamdetector.onrender.com/evaluate_listing', aiPayload);
         const riskData = aiResponse.data;
 
         aiScore = riskData.metadata_risk_score || 0;
