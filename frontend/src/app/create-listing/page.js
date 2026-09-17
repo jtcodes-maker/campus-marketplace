@@ -3,17 +3,17 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
-import { ImagePlus } from 'lucide-react'; // Adding an icon for the upload button
+import { ImagePlus } from 'lucide-react'; 
 
 export default function CreateListing() {
   const router = useRouter();
 
-  // 1. Form State (Now includes 'images')
+  // 1. Form State 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState('Tutoring');
-  const [images, setImages] = useState(null); // New state to hold our selected files
+  const [images, setImages] = useState(null); 
   
   // 2. Status State
   const [error, setError] = useState('');
@@ -27,7 +27,7 @@ export default function CreateListing() {
     }
   }, [router]);
 
-  // 4. Handle Form Submission with FormData
+  // 4. Handle Form Submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -35,38 +35,54 @@ export default function CreateListing() {
 
     try {
       const token = localStorage.getItem('token');
+      let aiVerdict = null;
 
-      // 🚨 CRUCIAL CHANGE: We must use FormData to send files, not JSON!
+      // --- NEW STEP: 1. Call AI directly from the user's phone ---
+      try {
+        const aiPayload = {
+          title,
+          description,
+          price_cleaned: Number(price),
+          category
+        };
+        const aiResponse = await axios.post('https://marketplace-ai-scamdetector.onrender.com/evaluate_listing', aiPayload);
+        aiVerdict = aiResponse.data;
+      } catch (aiError) {
+        console.error("AI Evaluation failed, proceeding cautiously:", aiError);
+        // Fallback if the AI is asleep or offline, matching your backend's graceful fail logic
+        aiVerdict = { risk_label: "Safe", text_risk_score: 0, metadata_risk_score: 0, explanations: [] };
+      }
+
+      // --- STEP 2: Prepare FormData for backend ---
       const formData = new FormData();
       formData.append('title', title);
       formData.append('description', description);
       formData.append('price', Number(price));
       formData.append('category', category);
+      
+      // Attach the AI verdict. We must stringify it because FormData only accepts strings/files
+      formData.append('ai_evaluation', JSON.stringify(aiVerdict));
 
-      // If the user selected files, attach them to the 'images' field
       if (images) {
-        // We use Array.from because 'images' is a FileList object, not a standard array
         Array.from(images).forEach((file) => {
           formData.append('images', file);
         });
       }
 
-      // Send the FormData to our backend
+      // --- STEP 3: Send complete package to backend ---
       await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/listings`,
         formData, 
         {
           headers: {
             Authorization: `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data', // Tells the backend to expect files!
+            'Content-Type': 'multipart/form-data', 
           },
         }
       );
 
-      // Success! Send them to the homepage
       router.push('/');
     } catch (err) {
-      //console.error(err);
       setError(err.response?.data?.message || 'Failed to create listing. Please try again.');
     } finally {
       setLoading(false);
@@ -136,7 +152,7 @@ export default function CreateListing() {
           ></textarea>
         </div>
 
-        {/* --- NEW IMAGE UPLOAD SECTION --- */}
+        {/* --- IMAGE UPLOAD SECTION --- */}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center">
             <ImagePlus className="w-4 h-4 mr-2" /> Upload Photos
@@ -145,7 +161,7 @@ export default function CreateListing() {
             <input
               type="file"
               accept="image/*"
-              multiple // Allows selecting multiple photos!
+              multiple 
               onChange={(e) => setImages(e.target.files)}
               className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
             />
@@ -157,7 +173,6 @@ export default function CreateListing() {
           </div>
           <p className="text-xs text-gray-400 mt-1">First image will be the cover. Max 5 images.</p>
         </div>
-        {/* -------------------------------- */}
 
         {/* Submit Button */}
         <div className="pt-4 border-t border-gray-100">

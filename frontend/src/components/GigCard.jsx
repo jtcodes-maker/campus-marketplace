@@ -41,7 +41,7 @@ export default function GigCard({ listing }) {
           {/* Rating Placeholder (Fiverr style) */}
           <div className="flex items-center text-yellow-500 text-sm mb-4 mt-auto">
             <Star className="w-4 h-4 fill-current" />
-            <span className="ml-1 font-bold">5.0</span>
+            <span className="ml-1 font-bold">1.0</span>
             <span className="text-gray-400 ml-1">(12)</span>
           </div>
 
