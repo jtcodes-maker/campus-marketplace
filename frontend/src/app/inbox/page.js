@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-// Added Trash2 to our icons!
 import { MessageSquare, ArrowRight, Send, Trash2 } from 'lucide-react';
 
 export default function Inbox() {
@@ -65,11 +64,25 @@ export default function Inbox() {
 
     try {
       setIsReplying(originalMessageId);
+      
+      let aiVerdict = null;
 
+      // --- 🤖 STEP 1: Call Python AI directly from the user's phone/browser ---
+      try {
+        const aiResponse = await axios.post('https://marketplace-ai-scamdetector.onrender.com/evaluate_message', {
+          text: textToSend.trim()
+        });
+        aiVerdict = aiResponse.data;
+      } catch (aiError) {
+        console.error("AI unreachable from frontend, proceeding without it.");
+      }
+
+      // --- 🛡️ STEP 2: Send complete package to backend for behavioral check & saving ---
       await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/messages`, {
         receiverId: otherPersonId,
         listingId: originalMessage.listing?._id, // Notice the optional chaining '?' just in case the item is deleted
         content: textToSend.trim(),
+        ai_evaluation: aiVerdict // Attach the AI's grade here!
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -80,12 +93,13 @@ export default function Inbox() {
 
     } catch (err) {
       console.error("Failed to send reply:", err.response?.data || err.message);
-      alert("Failed to send reply. Please try again.");
+      // Alert the user if the AI or backend blocked the message (e.g., spam or scam)
+      alert(err.response?.data?.message || "Failed to send reply. Please try again.");
       setIsReplying(null);
     }
   };
 
-  // --- NEW: Delete Function ---
+  // --- Delete Function ---
   const handleDeleteMessage = async (messageId) => {
     const confirmDelete = window.confirm("Are you sure you want to delete this message?");
     if (!confirmDelete) return;
