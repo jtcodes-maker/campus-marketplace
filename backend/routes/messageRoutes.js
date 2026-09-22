@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const axios = require('axios'); // Added to make requests to the Python AI
 const Message = require('../models/Message');
 const User = require('../models/User'); // Added to update spammer report counts
 const auth = require('../middleware/auth');
@@ -9,7 +8,8 @@ const auth = require('../middleware/auth');
 // @desc    Send a message to a seller
 router.post('/', auth, async (req, res) => {
   try {
-    const { receiverId, listingId, content } = req.body;
+    // 1. Extract the ai_evaluation payload sent by the frontend
+    const { receiverId, listingId, content, ai_evaluation } = req.body;
     
     // Stop the process immediately if the message is empty!
     if (!content || content.trim() === '') {
@@ -18,9 +18,7 @@ router.post('/', auth, async (req, res) => {
     
     const cleanContent = content.trim();
 
-    // --- 🛡️ BEHAVIORAL & AI MESSAGE SHIELD 🛡️ ---
-    
-    // 1. BEHAVIORAL COMPONENT: Track `repeated_message_count`
+    // --- 🛡️ BEHAVIORAL SHIELD (Node.js Math) 🛡️ ---
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentMessages = await Message.find({ 
       sender: req.user.id, 
@@ -29,38 +27,29 @@ router.post('/', auth, async (req, res) => {
 
     let exactMatchCount = 0;
     for (let msg of recentMessages) {
-      // Compare lowercase strings to catch copy-paste spam
       if (msg.content.toLowerCase() === cleanContent.toLowerCase()) {
         exactMatchCount++;
       }
     }
 
-    // Threshold: If the exact same message is sent 3 times in an hour, block it
     if (exactMatchCount >= 3) {
       console.warn(`[BLOCKED] User ${req.user.id} triggered repeated_message_count anomaly.`);
-      
-      // Automatically increment their report count for spamming
       await User.findByIdAndUpdate(req.user.id, { $inc: { reportCount: 1 } });
-      
       return res.status(403).json({ 
         message: 'Spam detected. You have sent this exact message too many times recently.' 
       });
     }
 
-    // 2. AI CONTENT COMPONENT: Scan for phishing links or scam language
-    try {
-      const aiResponse = await axios.post('https://marketplace-ai-scamdetector.onrender.com/evaluate_message', { 
-        text: cleanContent 
-      });
-      
-      if (aiResponse.data.risk_label === 'High-risk') {
+    // --- 🤖 AI CONTENT SHIELD (Frontend Payload) ---
+    if (ai_evaluation) {
+      if (ai_evaluation.risk_label === 'High-risk') {
         console.warn(`[BLOCKED] Message rejected by AI NLP model.`);
         return res.status(403).json({ 
           message: 'Message blocked by Trust & Safety AI for suspicious content.' 
         });
       }
-    } catch (aiError) {
-      console.error("🚨 Message AI Server unreachable, proceeding cautiously.");
+    } else {
+      console.log("⚠️ No AI message evaluation attached, proceeding cautiously.");
     }
     // ----------------------------------------------
     
