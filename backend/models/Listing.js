@@ -27,6 +27,10 @@ const listingSchema = new mongoose.Schema({
   images: [
     { type: String } // An array of image URLs
   ],
+  image_hash: {
+    type: String,
+    default: ""
+  },
   status: {
     type: String,
     default: 'Active',

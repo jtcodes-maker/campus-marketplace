@@ -13,6 +13,26 @@ const filter = new Filter();
 filter.addWords('nude', 'nudes', 'onlyfans', 'hookup', 'sugar', 'daddy', 'mommy');
 // -----------------------------------
 
+// --- 🧮 IMAGE SIMILARITY MATH ENGINE 🧮 ---
+function hexToBinary(hex) {
+  let bin = '';
+  for (let i = 0; i < hex.length; i++) {
+    bin += parseInt(hex[i], 16).toString(2).padStart(4, '0');
+  }
+  return bin;
+}
+
+function getHammingDistance(hash1, hash2) {
+  const bin1 = hexToBinary(hash1);
+  const bin2 = hexToBinary(hash2);
+  let distance = 0;
+  for (let i = 0; i < bin1.length; i++) {
+    if (bin1[i] !== bin2[i]) distance++;
+  }
+  return distance; // A distance of 0 is an exact duplicate. < 8 is a cropped/edited duplicate.
+}
+// ------------------------------------------
+
 // Wrap multer so we can explicitly catch and log its background errors!
 const uploadMiddleware = upload.array('images', 5);
 
@@ -64,6 +84,7 @@ router.post('/', auth, (req, res) => {
       // --- 🤖 THE AI TRUST & SAFETY SHIELD (Frontend Payload) 🤖 ---
       let aiScore = 0;
       let aiFlags = [];
+      let incomingHash = "";
 
       if (ai_evaluation) {
         try {
@@ -73,7 +94,9 @@ router.post('/', auth, (req, res) => {
 
           aiScore = riskData.metadata_risk_score || 0;
           aiFlags = riskData.explanations || [];
+          incomingHash = riskData.image_hash || "";
 
+          // 1. Check if the AI Text/Metadata flagged the gig
           if (riskData.risk_label === 'High-risk') {
             console.warn(`[BLOCKED] Listing rejected by AI: ${aiFlags.join(', ')}`);
             return res.status(403).json({
@@ -81,6 +104,28 @@ router.post('/', auth, (req, res) => {
               flags: aiFlags
             });
           }
+
+          // --- 🚨 DYNAMIC IMAGE DUPLICATE SCANNER 🚨 ---
+          // 2. If the AI generated an image hash, scan the entire database for matches
+          if (incomingHash) {
+            const allListings = await Listing.find({ image_hash: { $ne: "" } }).select('image_hash _id title');
+            
+            for (let item of allListings) {
+              // Ensure hashes are valid before running the math engine
+              if (item.image_hash && item.image_hash.length === incomingHash.length) {
+                const distance = getHammingDistance(incomingHash, item.image_hash);
+                
+                if (distance < 8) { // Less than 8 bits difference = Stolen/Duplicate Image
+                  console.warn(`[BLOCKED] Image matched existing listing: ${item._id}`);
+                  return res.status(403).json({ 
+                    message: `This image is a duplicate of an existing listing ("${item.title}"). To prevent scams, reused images are not allowed.` 
+                  });
+                }
+              }
+            }
+          }
+          // ---------------------------------------------
+
         } catch (parseError) {
           console.error("🚨 Failed to parse AI evaluation from frontend:", parseError.message);
         }
@@ -89,7 +134,7 @@ router.post('/', auth, (req, res) => {
       }
       // ------------------------------------------
 
-      // 3. Save the gig to MongoDB (Including AI Data)
+      // 3. Save the gig to MongoDB (Including AI Data & the new Hash)
       const newListing = new Listing({
         seller: req.user.id, 
         title,
@@ -97,6 +142,7 @@ router.post('/', auth, (req, res) => {
         price,
         category,
         images: imageUrls,
+        image_hash: incomingHash, // <-- SAVE THE HASH HERE
         ai_risk_score: aiScore,
         ai_flags: aiFlags
       });
@@ -122,7 +168,7 @@ router.get('/', async (req, res) => {
     let query = {}; 
 
     if (search) {
-      query.title = { $regex: search, $options: 'i' }; 
+      query.title = { $regex: search,$options: 'i' }; 
     }
     
     if (category) {
