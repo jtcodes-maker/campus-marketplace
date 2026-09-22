@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const axios = require('axios'); // Added to make requests to the Python AI
 const Message = require('../models/Message');
+const User = require('../models/User'); // Added to update spammer report counts
 const auth = require('../middleware/auth');
 
 // @route   POST /api/messages
@@ -9,16 +11,64 @@ router.post('/', auth, async (req, res) => {
   try {
     const { receiverId, listingId, content } = req.body;
     
-    // NEW: Stop the process immediately if the message is empty!
+    // Stop the process immediately if the message is empty!
     if (!content || content.trim() === '') {
       return res.status(400).json({ message: 'Message content cannot be empty' });
     }
+    
+    const cleanContent = content.trim();
+
+    // --- 🛡️ BEHAVIORAL & AI MESSAGE SHIELD 🛡️ ---
+    
+    // 1. BEHAVIORAL COMPONENT: Track `repeated_message_count`
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentMessages = await Message.find({ 
+      sender: req.user.id, 
+      createdAt: { $gte: oneHourAgo } 
+    });
+
+    let exactMatchCount = 0;
+    for (let msg of recentMessages) {
+      // Compare lowercase strings to catch copy-paste spam
+      if (msg.content.toLowerCase() === cleanContent.toLowerCase()) {
+        exactMatchCount++;
+      }
+    }
+
+    // Threshold: If the exact same message is sent 3 times in an hour, block it
+    if (exactMatchCount >= 3) {
+      console.warn(`[BLOCKED] User ${req.user.id} triggered repeated_message_count anomaly.`);
+      
+      // Automatically increment their report count for spamming
+      await User.findByIdAndUpdate(req.user.id, { $inc: { reportCount: 1 } });
+      
+      return res.status(403).json({ 
+        message: 'Spam detected. You have sent this exact message too many times recently.' 
+      });
+    }
+
+    // 2. AI CONTENT COMPONENT: Scan for phishing links or scam language
+    try {
+      const aiResponse = await axios.post('https://marketplace-ai-scamdetector.onrender.com/evaluate_message', { 
+        text: cleanContent 
+      });
+      
+      if (aiResponse.data.risk_label === 'High-risk') {
+        console.warn(`[BLOCKED] Message rejected by AI NLP model.`);
+        return res.status(403).json({ 
+          message: 'Message blocked by Trust & Safety AI for suspicious content.' 
+        });
+      }
+    } catch (aiError) {
+      console.error("🚨 Message AI Server unreachable, proceeding cautiously.");
+    }
+    // ----------------------------------------------
     
     const newMessage = new Message({
       sender: req.user.id,
       receiver: receiverId,
       listing: listingId,
-      content: content.trim() // .trim() removes any accidental extra spaces
+      content: cleanContent
     });
 
     await newMessage.save();
