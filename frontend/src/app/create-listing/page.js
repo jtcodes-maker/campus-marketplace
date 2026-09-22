@@ -37,20 +37,24 @@ export default function CreateListing() {
       const token = localStorage.getItem('token');
       let aiVerdict = null;
 
-      // --- NEW STEP: 1. Call AI directly from the user's phone ---
+      // --- STEP 1: Call AI directly from the user's phone ---
       try {
-        const aiPayload = {
-          title,
-          description,
-          price_cleaned: Number(price),
-          category
-        };
-        const aiResponse = await axios.post('https://marketplace-ai-scamdetector.onrender.com/evaluate_listing', aiPayload);
+        const aiFormData = new FormData();
+        aiFormData.append('title', title);
+        aiFormData.append('description', description);
+        aiFormData.append('price_cleaned', Number(price));
+        aiFormData.append('category', category);
+        
+        // Attach the first image for the AI to run similarity checks
+        if (images && images.length > 0) {
+          aiFormData.append('image', images[0]); 
+        }
+
+        const aiResponse = await axios.post('https://marketplace-ai-scamdetector.onrender.com/evaluate_listing', aiFormData);
         aiVerdict = aiResponse.data;
       } catch (aiError) {
         console.error("AI Evaluation failed, proceeding cautiously:", aiError);
-        // Fallback if the AI is asleep or offline, matching your backend's graceful fail logic
-        aiVerdict = { risk_label: "Safe", text_risk_score: 0, metadata_risk_score: 0, explanations: [] };
+        aiVerdict = { risk_label: "Safe", text_risk_score: 0, metadata_risk_score: 0, image_similarity_score: 0, explanations: [] };
       }
 
       // --- STEP 2: Prepare FormData for backend ---
