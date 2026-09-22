@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { MessageSquare, ArrowRight, Send, Trash2 } from 'lucide-react';
+import { MessageSquare, ArrowRight, Send, Trash2, AlertCircle } from 'lucide-react';
 
 export default function Inbox() {
   const router = useRouter();
@@ -15,6 +15,9 @@ export default function Inbox() {
 
   const [replyTexts, setReplyTexts] = useState({}); 
   const [isReplying, setIsReplying] = useState(null);
+  
+  // --- NEW: State to track contextual inline errors for specific replies ---
+  const [replyErrors, setReplyErrors] = useState({});
 
   useEffect(() => {
     fetchInbox();
@@ -55,10 +58,12 @@ export default function Inbox() {
     const textToSend = replyTexts[originalMessageId];
 
     if (!textToSend || !textToSend.trim()) {
-      alert("Please type a message before sending!");
+      setReplyErrors(prev => ({ ...prev, [originalMessageId]: "Please type a message before sending." }));
       return;
     }
 
+    // Clear any previous errors for this specific thread
+    setReplyErrors(prev => ({ ...prev, [originalMessageId]: null }));
     const isSender = originalMessage.sender._id === currentUserId;
     const otherPersonId = isSender ? originalMessage.receiver._id : originalMessage.sender._id;
 
@@ -67,7 +72,7 @@ export default function Inbox() {
       
       let aiVerdict = null;
 
-      // --- 🤖 STEP 1: Call Python AI directly from the user's phone/browser ---
+      // 1. Call Python AI directly
       try {
         const aiResponse = await axios.post('https://marketplace-ai-scamdetector.onrender.com/evaluate_message', {
           text: textToSend.trim()
@@ -77,12 +82,12 @@ export default function Inbox() {
         console.error("AI unreachable from frontend, proceeding without it.");
       }
 
-      // --- 🛡️ STEP 2: Send complete package to backend for behavioral check & saving ---
+      // 2. Send complete package to backend
       await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/messages`, {
         receiverId: otherPersonId,
-        listingId: originalMessage.listing?._id, // Notice the optional chaining '?' just in case the item is deleted
+        listingId: originalMessage.listing?._id, 
         content: textToSend.trim(),
-        ai_evaluation: aiVerdict // Attach the AI's grade here!
+        ai_evaluation: aiVerdict 
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -93,13 +98,15 @@ export default function Inbox() {
 
     } catch (err) {
       console.error("Failed to send reply:", err.response?.data || err.message);
-      // Alert the user if the AI or backend blocked the message (e.g., spam or scam)
-      alert(err.response?.data?.message || "Failed to send reply. Please try again.");
+      // --- NEW: Set the inline error instead of using alert() ---
+      setReplyErrors(prev => ({ 
+        ...prev, 
+        [originalMessageId]: err.response?.data?.message || "Failed to send reply. Please try again." 
+      }));
       setIsReplying(null);
     }
   };
 
-  // --- Delete Function ---
   const handleDeleteMessage = async (messageId) => {
     const confirmDelete = window.confirm("Are you sure you want to delete this message?");
     if (!confirmDelete) return;
@@ -110,11 +117,10 @@ export default function Inbox() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Instantly remove it from the screen without reloading
       setMessages(messages.filter((msg) => msg._id !== messageId));
     } catch (err) {
       console.error("Delete error:", err);
-      alert("Failed to delete message. Please try again.");
+      setError("Failed to delete message. Please try again.");
     }
   };
 
@@ -134,7 +140,8 @@ export default function Inbox() {
       </div>
 
       {error && (
-        <div className="bg-red-50 text-red-500 p-4 rounded-md mb-6 font-medium">
+        <div className="bg-red-50 text-red-500 p-4 rounded-md mb-6 font-medium flex items-center">
+          <AlertCircle className="w-5 h-5 mr-2" />
           {error}
         </div>
       )}
@@ -170,7 +177,6 @@ export default function Inbox() {
                       </div>
                     </div>
                     
-                    {/* Timestamp & Delete Button Group */}
                     <div className="flex items-center mt-3 sm:mt-0">
                       <span className="text-xs text-gray-400 font-medium mr-4">
                         {new Date(msg.createdAt).toLocaleDateString()} at {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
@@ -211,13 +217,22 @@ export default function Inbox() {
                       className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-green-500 focus:outline-none resize-none bg-white shadow-inner"
                       rows="2"
                     ></textarea>
+                    
+                    {/* --- NEW: Inline Contextual Error Banner --- */}
+                    {replyErrors[msg._id] && (
+                      <div className="mt-3 flex items-start bg-red-50 text-red-600 text-sm p-3 rounded-md border border-red-100">
+                        <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+                        <span className="font-medium">{replyErrors[msg._id]}</span>
+                      </div>
+                    )}
+
                     <div className="flex justify-end mt-3">
                       <button 
                         onClick={() => handleSendReply(msg._id, msg)}
                         disabled={isReplying === msg._id}
                         className={`flex items-center bg-green-600 text-white px-5 py-2 rounded-md font-semibold hover:bg-green-700 transition-colors ${isReplying === msg._id ? 'opacity-70 cursor-not-allowed' : ''}`}
                       >
-                        {isReplying === msg._id ? 'Sending...' : <><Send className="w-4 h-4 mr-2" /> Send Reply</>}
+                        {isReplying === msg._id ? 'Evaluating...' : <><Send className="w-4 h-4 mr-2" /> Send Reply</>}
                       </button>
                     </div>
                   </div>
