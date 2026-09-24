@@ -74,7 +74,7 @@ export default function Inbox() {
 
       // 1. Call Python AI directly
       try {
-        const aiResponse = await axios.post('https://marketplace-ai-scamdetector.onrender.com/evaluate_message', {
+        const aiResponse = await axios.post('http://127.0.0.1:5001/evaluate_message', {
           text: textToSend.trim()
         });
         aiVerdict = aiResponse.data;

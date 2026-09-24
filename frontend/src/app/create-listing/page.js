@@ -50,8 +50,8 @@ export default function CreateListing() {
           aiFormData.append('image', images[0]); 
         }
 
-        const aiResponse = await axios.post('https://marketplace-ai-scamdetector.onrender.com/evaluate_listing', aiFormData);
-        aiVerdict = aiResponse.data;
+       const aiResponse = await axios.post('http://127.0.0.1:5001/evaluate_listing', aiFormData);
+       aiVerdict = aiResponse.data;
       } catch (aiError) {
         console.error("AI Evaluation failed, proceeding cautiously:", aiError);
         aiVerdict = { risk_label: "Safe", text_risk_score: 0, metadata_risk_score: 0, image_similarity_score: 0, explanations: [] };
